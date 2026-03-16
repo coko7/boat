@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local, NaiveDateTime, TimeZone};
+use std::hash::{DefaultHasher, Hasher};
 
 /// Parses naive datetime string to local timezone.
 /// Handles DST gaps/folds by picking earliest valid.
@@ -13,6 +14,13 @@ pub fn parse_local_dt(s: &str) -> Result<DateTime<Local>> {
         .context("invalid local time (e.g., DST gap)")
 }
 
+pub fn compute_hash(input: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    hasher.write(input.as_bytes());
+    let hash = hasher.finish();
+    format!("{:016x}", hash)
+}
+
 #[cfg(test)]
 pub fn init_test_logger() {
     let _ = env_logger::builder()
@@ -23,9 +31,14 @@ pub fn init_test_logger() {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use chrono::Timelike;
 
-    use super::*;
+    #[test]
+    fn test_compute_hash() {
+        let hash = compute_hash("foo bar baz");
+        assert_eq!(hash, "0613805dad7faf54");
+    }
 
     #[test]
     fn test_parse_local_dt_with_valid_datetime_should_be_ok() -> Result<()> {

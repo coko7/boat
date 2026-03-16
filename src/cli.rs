@@ -1,6 +1,6 @@
-use clap::{Args, Parser, Subcommand};
+use clap::{ArgAction, Args, Parser, Subcommand};
 
-use crate::data::ActivityId;
+use crate::activity::ActId;
 
 #[derive(Parser)]
 #[command(
@@ -26,9 +26,9 @@ pub enum Commands {
         /// Name of the activity to start
         activity: String,
 
-        /// Category for this activity
-        #[arg(short, long, value_name = "NAME")]
-        category: Option<String>,
+        /// Tags for this activity
+        #[arg(short, long, value_delimiter = ',', action = ArgAction::Append)]
+        tags: Vec<String>,
     },
 
     #[command(alias = "r")]
@@ -56,5 +56,5 @@ pub enum Commands {
 #[derive(Args)]
 pub struct ActivityIdSelector {
     /// ID of the activity
-    activity_id: ActivityId,
+    activity_id: ActId,
 }

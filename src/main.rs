@@ -6,6 +6,7 @@ use crate::cli::Cli;
 mod activity;
 mod cli;
 mod data;
+mod parser;
 mod utils;
 
 fn main() {
@@ -16,7 +17,7 @@ fn main() {
         .init();
 
     match &args.command {
-        cli::Commands::Start { activity, category } => start_activity(activity, category),
+        cli::Commands::Start { activity, tags } => start_activity(activity, tags),
         cli::Commands::List {
             show_all,
             show_current,
@@ -28,6 +29,6 @@ fn main() {
     }
 }
 
-fn start_activity(name: &str, category: &Option<String>) {
+fn start_activity(name: &str, category: &[String]) {
     println!("starting {} with: {:?}", name, category)
 }
