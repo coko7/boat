@@ -1,5 +1,7 @@
 # ⛵ boat
 
+![build](https://github.com/coko7/boat/actions/workflows/rust.yml/badge.svg)
+
 `boat` - **B**asic **O**pinionated **A**ctivity **T**racker, inspired by [bartib](https://github.com/nikolassv/bartib).
 
 ## Commands

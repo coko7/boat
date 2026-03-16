@@ -113,6 +113,7 @@ mod tests {
     #[test]
     fn test_parse_local_dt_dst_gap_invalid_time_should_be_err() {
         init_test_logger();
+
         // Example DST gap: Europe/Paris 2023-03-26 02:00-03:00 doesn't exist (clocks jump to 03:00)
         // Use 02:30 as invalid local time
         let naive =
