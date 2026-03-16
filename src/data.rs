@@ -1,11 +1,13 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, Local, NaiveDateTime, TimeZone};
+use chrono::{DateTime, Local};
 use log::debug;
 use std::{
     collections::{HashMap, HashSet},
     fs::File,
     io::{self, BufRead},
 };
+
+use crate::utils;
 
 pub type ActivityId = u64;
 
@@ -40,7 +42,7 @@ pub fn load_from_file() -> Result<Vec<Activity>> {
 
     for line in reader.lines() {
         let line = line?;
-        let act_record = parse_activity_record_line(&line);
+        let act_record = parse_activity_record_line(&line)?;
         println!("{}", line);
     }
 
@@ -63,10 +65,12 @@ fn parse_activity_record_line(line: &str) -> Result<ActivityRecord> {
     debug!("raw start time: {}", start);
     debug!("raw end time: {} ({} chars)", end, end.len());
 
-    let start = parse_local_dt(start)?;
+    let start = utils::parse_local_dt(start)?;
     debug!("parsed start time: {}", start);
 
-    let end = (!end.is_empty()).then(|| parse_local_dt(end)).transpose()?;
+    let end = (!end.is_empty())
+        .then(|| utils::parse_local_dt(end))
+        .transpose()?;
 
     debug!("parsed end time: {end:?}");
 
@@ -92,58 +96,19 @@ fn parse_activity_record_line(line: &str) -> Result<ActivityRecord> {
     Ok(act)
 }
 
-/// Parses naive datetime string to local timezone.
-/// Handles DST gaps/folds by picking earliest valid.
-pub fn parse_local_dt(s: &str) -> Result<DateTime<Local>> {
-    let naive = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f")
-        .with_context(|| format!("Failed to parse '{s}' as naive datetime"))?;
-
-    Local
-        .from_local_datetime(&naive)
-        .earliest()
-        .context("Invalid local time (e.g., DST gap)")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn setup_logger() {
-        use env_logger::Builder;
-        let _ = Builder::from_default_env()
-            .is_test(true) // CRUCIAL: enables test capture
-            .filter_level(log::LevelFilter::Trace)
-            .try_init();
-    }
-
-    #[test]
-    fn test_parse_local_dt_err() {
-        setup_logger();
-        let result = parse_local_dt("invalid");
-        assert!(result.is_err());
-        // assert_eq!(
-        //     result.unwrap_err().to_string(),
-        //     "Failed to parse datetime string: input has length 7, but expected pattern has length at least 19"
-        // );
-    }
-
-    #[test]
-    fn test_parse_local_dt_ok() {
-        setup_logger();
-        let fmt = "%Y-%m-%d %H:%M:%S";
-        let exp = parse_local_dt("2023-10-05 14:30:00").unwrap();
-
-        assert_eq!(exp.format(fmt).to_string(), format!("2023-10-05 14:30:00"));
-    }
+    use crate::utils;
 
     #[test]
     fn test_parse_activity_record() {
-        setup_logger();
+        utils::init_test_logger();
         let exp = ActivityRecord {
             name: "do some stuff".to_string(),
             category: Some("misc".to_string()),
-            start: parse_local_dt("2026-03-16 08:00:00").unwrap(),
-            end: Some(parse_local_dt("2026-03-16 09:30:00").unwrap()),
+            start: utils::parse_local_dt("2026-03-16 08:00:00").unwrap(),
+            end: Some(utils::parse_local_dt("2026-03-16 09:30:00").unwrap()),
         };
         let from_file = "2026-03-16 08:00:00 > 2026-03-16 09:30:00 | misc | do some stuff";
         let actual = parse_activity_record_line(from_file).unwrap();
@@ -152,11 +117,11 @@ mod tests {
 
     #[test]
     fn test_parse_activity_record_ongoing() {
-        setup_logger();
+        utils::init_test_logger();
         let exp = ActivityRecord {
             name: "do some stuff".to_string(),
             category: Some("misc".to_string()),
-            start: parse_local_dt("2026-03-16 08:00:00").unwrap(),
+            start: utils::parse_local_dt("2026-03-16 08:00:00").unwrap(),
             end: None,
         };
         let from_file = "2026-03-16 08:00:00 > | misc | do some stuff";
@@ -166,11 +131,11 @@ mod tests {
 
     #[test]
     fn test_parse_activity_record_no_category() {
-        setup_logger();
+        utils::init_test_logger();
         let exp = ActivityRecord {
             name: "do some stuff".to_string(),
             category: None,
-            start: parse_local_dt("2026-03-16 08:00:00").unwrap(),
+            start: utils::parse_local_dt("2026-03-16 08:00:00").unwrap(),
             end: None,
         };
         let from_file = "2026-03-16 08:00:00 > | | do some stuff";

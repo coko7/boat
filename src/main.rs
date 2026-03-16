@@ -1,10 +1,12 @@
 use clap::Parser;
-use log::{LevelFilter, info};
+use log::LevelFilter;
 
 use crate::cli::Cli;
 
+mod activity;
 mod cli;
 mod data;
+mod utils;
 
 fn main() {
     let args = Cli::parse();
