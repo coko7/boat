@@ -8,7 +8,7 @@ use crate::utils;
 pub type ActId = String;
 pub type ActTime = DateTime<Local>;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Activity {
     id: ActId,
     parent_id: Option<ActId>,
@@ -29,24 +29,14 @@ impl Activity {
         }
     }
 
-    pub fn new(name: String) -> Activity {
-        let id = Self::generate_rand_hash();
+    pub fn new(id: &str, name: &str) -> Activity {
         Activity {
-            id,
+            id: id.to_string(),
             parent_id: None,
-            name,
+            name: name.to_string(),
             tags: HashSet::new(),
             tracking: HashSet::new(),
         }
-    }
-
-    fn generate_rand_hash() -> ActId {
-        let random_input: String = rand::rng()
-            .sample_iter(&Alphanumeric)
-            .take(32)
-            .map(char::from)
-            .collect();
-        utils::compute_hex_hash(&random_input)
     }
 
     pub fn id(&self) -> &ActId {

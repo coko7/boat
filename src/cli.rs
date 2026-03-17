@@ -121,9 +121,16 @@ pub struct ModifyActivityArgs {
     /// ID of the activity to edit
     id: String,
 
+    #[clap(flatten)]
+    update: UpdateGroup,
+}
+
+#[derive(clap::Args)]
+#[group(required = true)]
+pub struct UpdateGroup {
     /// New name for the activity
     #[arg(short = 'n', long = "name")]
-    name: String,
+    name: Option<String>,
 
     /// New ID for the parent activity
     #[arg(short = 'p', long = "parent")]
@@ -131,7 +138,7 @@ pub struct ModifyActivityArgs {
 
     /// New list of tags to use for the activity
     #[arg(short, long, value_delimiter = ',', action = ArgAction::Append)]
-    tags: Vec<String>,
+    tags: Option<Vec<String>>,
 }
 
 #[derive(Args)]
