@@ -1,47 +1,12 @@
 use chrono::{DateTime, Local};
+use rand::{RngExt, distr::Alphanumeric};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-pub type ActId = u64;
+use crate::utils;
+
+pub type ActId = String;
 pub type ActTime = DateTime<Local>;
-
-pub struct ActivityFactory {
-    serial_id: u64,
-}
-
-impl ActivityFactory {
-    pub fn new() -> Self {
-        Self { serial_id: 0 }
-    }
-
-    pub fn create_activity(&mut self, name: &str) -> Activity {
-        // TODO: comupte a fast hash from "act_name,id"
-        // ID should still be a u64. Every new activity will have a new incrmented ID serial.
-        // Cross-days, the ID will still be a serial. The first activity of the day may be 323 for
-        // example.
-        // An activity will also have a hash associated to it, hash should be computed fast.
-        // the hash is base64 and should be used in commands to select/filter that activity easy
-        // and fast. Similar to git, you only need a prefix of the hash for it to work.
-        // As long as the prefix is unique that is.
-        // the hash should be bae64 encoded to make it easy to write in command line
-        let niu = Activity {
-            id: self.get_next_serial_id(),
-            parent_id: None,
-            name: name.to_string(),
-            tags: HashSet::new(),
-            tracking: HashSet::new(),
-        };
-
-        self.serial_id += 1;
-        niu
-    }
-
-    fn get_next_serial_id(&mut self) -> ActId {
-        let id = self.serial_id;
-        self.serial_id += 1;
-        id
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Activity {
@@ -54,12 +19,42 @@ pub struct Activity {
 }
 
 impl Activity {
-    pub fn id(&self) -> ActId {
-        self.id
+    pub fn from_definition(definition: ActivityDefinition) -> Activity {
+        Activity {
+            id: definition.id,
+            parent_id: definition.parent_id,
+            name: definition.name,
+            tags: definition.tags,
+            tracking: HashSet::new(),
+        }
+    }
+
+    pub fn new(name: String) -> Activity {
+        let id = Self::generate_rand_hash();
+        Activity {
+            id,
+            parent_id: None,
+            name,
+            tags: HashSet::new(),
+            tracking: HashSet::new(),
+        }
+    }
+
+    fn generate_rand_hash() -> ActId {
+        let random_input: String = rand::rng()
+            .sample_iter(&Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect();
+        utils::compute_hex_hash(&random_input)
+    }
+
+    pub fn id(&self) -> &ActId {
+        &self.id
     }
 
     pub fn parent_id(&self) -> Option<ActId> {
-        self.parent_id
+        self.parent_id.clone()
     }
 
     pub fn set_parent(&mut self, parent_id: ActId) {
@@ -86,8 +81,9 @@ impl Activity {
         self.tags = tags;
     }
 
-    pub fn hash() -> String {
-        todo!()
+    pub fn register_log(&mut self, log: ActivityLog) {
+        let log = (log.start, log.end);
+        self.tracking.insert(log);
     }
 }
 

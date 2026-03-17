@@ -5,9 +5,11 @@ use crate::cli::Cli;
 
 mod activity;
 mod cli;
-mod data;
+mod converter;
 mod parser;
+mod store;
 mod utils;
+mod validator;
 
 fn main() {
     let args = Cli::parse();
@@ -17,15 +19,15 @@ fn main() {
         .init();
 
     match &args.command {
-        cli::Commands::Start { activity, tags } => start_activity(activity, tags),
-        cli::Commands::List {
-            show_all,
-            show_current,
-            show_categories,
-        } => todo!(),
-        cli::Commands::Resume(activity_id_selector) => todo!(),
-        cli::Commands::Cancel(activity_id_selector) => todo!(),
-        cli::Commands::Finish(activity_id_selector) => todo!(),
+        cli::Commands::New(create_activity_args) => todo!(),
+        cli::Commands::Start(select_activity_args) => todo!(),
+        cli::Commands::Pause => todo!(),
+        cli::Commands::Modify(modify_activity_args) => todo!(),
+        cli::Commands::Delete(select_activity_args) => todo!(),
+        cli::Commands::Get(print_activity_args) => todo!(),
+        cli::Commands::List(list_activity_args) => todo!(),
+        cli::Commands::Edit(edit_files_args) => todo!(),
+        cli::Commands::Report {} => todo!(),
     }
 }
 

@@ -61,13 +61,13 @@ mod tests {
         utils::init_test_logger();
         assert_eq!(
             vec![ActivityLog {
-                id: 0,
+                id: "27e28d2ac61f35f7".to_string(),
                 start: utils::parse_local_dt("2026-03-16 08:00:00")?,
                 end: Some(utils::parse_local_dt("2026-03-16 09:30:00")?),
             }],
             parse_csv::<ActivityLog>(
                 "id;start;end
-0;2026-03-16T08:00:00+01:00;2026-03-16T09:30:00+01:00"
+27e28d2ac61f35f7;2026-03-16T08:00:00+01:00;2026-03-16T09:30:00+01:00"
             )?
         );
         Ok(())
@@ -83,20 +83,20 @@ mod tests {
         assert_eq!(
             vec![
                 ActivityDefinition {
-                    id: 123,
+                    id: "1e702a61b5c30021".to_string(),
                     parent_id: None,
                     name: "take out trash".to_string(),
                     tags: HashSet::new(),
                 },
                 ActivityDefinition {
-                    id: 123,
-                    parent_id: Some(64),
+                    id: "979f13ada1031e05".to_string(),
+                    parent_id: Some("2588c8f8ac72af67".to_string()),
                     name: "cook pasta".to_string(),
                     tags: HashSet::new(),
                 },
                 ActivityDefinition {
-                    id: 2,
-                    parent_id: Some(1),
+                    id: "bc7272ea7045d136".to_string(),
+                    parent_id: Some("7a6e4e2b4b094661".to_string()),
                     name: "work on csv parser".to_string(),
                     tags
                 }
@@ -104,9 +104,9 @@ mod tests {
             // TODO: handle duplicate activity IDss
             parse_csv::<ActivityDefinition>(
                 "id;parent_id;name;tags
-123;;take out trash;
-123;64;cook pasta;
-2;1;work on csv parser;cli|code"
+1e702a61b5c30021;;take out trash;
+979f13ada1031e05;2588c8f8ac72af67;cook pasta;
+bc7272ea7045d136;7a6e4e2b4b094661;work on csv parser;cli|code"
             )?
         );
         Ok(())

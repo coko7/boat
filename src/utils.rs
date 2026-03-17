@@ -14,7 +14,7 @@ pub fn parse_local_dt(s: &str) -> Result<DateTime<Local>> {
         .context("invalid local time (e.g., DST gap)")
 }
 
-pub fn compute_hash(input: &str) -> String {
+pub fn compute_hex_hash(input: &str) -> String {
     let mut hasher = DefaultHasher::new();
     hasher.write(input.as_bytes());
     let hash = hasher.finish();
@@ -36,7 +36,7 @@ mod tests {
 
     #[test]
     fn test_compute_hash() {
-        let hash = compute_hash("foo bar baz");
+        let hash = compute_hex_hash("foo bar baz");
         assert_eq!(hash, "0613805dad7faf54");
     }
 
