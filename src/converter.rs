@@ -52,3 +52,100 @@ fn init_activities_from_definitions(
 
     Ok(activities)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::init_test_logger;
+    use chrono::{Local, TimeZone};
+    use std::collections::HashSet;
+
+    fn create_test_act_definition(id: &str, parent_id: Option<&str>) -> ActivityDefinition {
+        ActivityDefinition {
+            id: id.to_string(),
+            parent_id: parent_id.map(|s| s.to_string()),
+            name: format!("Activity {id}"),
+            tags: HashSet::new(),
+        }
+    }
+
+    fn create_test_act_log(id: &str, start_secs: i64, end_secs: Option<i64>) -> ActivityLog {
+        ActivityLog {
+            id: id.to_string(),
+            start: Local.timestamp_opt(start_secs, 0).unwrap(),
+            end: end_secs.map(|e| Local.timestamp_opt(e, 0).unwrap()),
+        }
+    }
+
+    #[test]
+    fn recreate_activities_basic_no_logs() {
+        init_test_logger();
+        let defs = vec![
+            create_test_act_definition("foo", None),
+            create_test_act_definition("bar", None),
+        ];
+        let map = recreate_activities(defs, vec![]).expect("should succeed");
+
+        assert_eq!(map.len(), 2);
+        assert!(map.contains_key("foo"));
+        assert!(map.contains_key("bar"));
+    }
+
+    #[test]
+    fn recreate_activities_basic_with_logs() {
+        init_test_logger();
+        let defs = vec![create_test_act_definition("foo", None)];
+        let logs = vec![create_test_act_log("foo", 100, Some(200))];
+        let map = recreate_activities(defs.clone(), logs.clone()).expect("should succeed");
+
+        let foo = map.get("foo").unwrap();
+        assert!(foo.tracking().contains(&(logs[0].start, logs[0].end)));
+    }
+
+    #[test]
+    fn recreate_activities_log_for_missing_id() {
+        init_test_logger();
+        let defs = vec![create_test_act_definition("foo", None)];
+        let logs = vec![create_test_act_log("bar", 0, None)];
+
+        let err = recreate_activities(defs, logs).unwrap_err();
+        assert!(err.to_string().contains("activity not found: bar"));
+    }
+
+    #[test]
+    fn init_duplicate_id_should_err() {
+        init_test_logger();
+        let defs = vec![
+            create_test_act_definition("foo", None),
+            create_test_act_definition("foo", None),
+        ];
+
+        let err = super::init_activities_from_definitions(defs).unwrap_err();
+        assert!(err.to_string().contains("duplicate ID found"));
+    }
+
+    #[test]
+    fn init_self_parent_should_err() {
+        init_test_logger();
+        let defs = vec![create_test_act_definition("foo", Some("foo"))];
+
+        let err = super::init_activities_from_definitions(defs).unwrap_err();
+        assert!(err.to_string().contains("cannot be its own parent"));
+    }
+
+    #[test]
+    fn cycle_detection_placeholder_warning() {
+        // Cannot test for actual cycle handling until it's implemented,
+        // but warn! macro should not panic.
+        // Just ensure we can construct nested parent-child without crash.
+        init_test_logger();
+        let defs = vec![
+            create_test_act_definition("a", Some("b")),
+            create_test_act_definition("b", Some("c")),
+            create_test_act_definition("c", Some("a")),
+        ];
+        // Should NOT fail due to cycle (yet) but still create 3 activities.
+        let map = super::init_activities_from_definitions(defs).expect("no cycle detection yet");
+        assert_eq!(map.len(), 3);
+    }
+}

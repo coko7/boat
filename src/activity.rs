@@ -85,9 +85,13 @@ impl Activity {
         let log = (log.start, log.end);
         self.tracking.insert(log);
     }
+
+    pub fn tracking(&self) -> &HashSet<(ActTime, Option<ActTime>)> {
+        &self.tracking
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct ActivityDefinition {
     pub id: ActId,
     pub parent_id: Option<ActId>,
@@ -96,7 +100,7 @@ pub struct ActivityDefinition {
     pub tags: HashSet<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct ActivityLog {
     pub id: ActId,
     pub start: ActTime,
