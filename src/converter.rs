@@ -33,10 +33,10 @@ fn init_activities_from_definitions(
             );
         }
 
-        if let Some(ref parent_id) = definition.parent_id {
-            if *parent_id == definition.id {
-                bail!("activity cannot be its own parent: {definition:?}");
-            }
+        if let Some(ref parent_id) = definition.parent_id
+            && *parent_id == definition.id
+        {
+            bail!("activity cannot be its own parent: {definition:?}");
         }
 
         // FIX: Need to check for cycle refs:

@@ -1,14 +1,9 @@
 use anyhow::Result;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::Bound::{Excluded, Included};
-use std::{
-    collections::{BTreeMap, HashMap},
-    fs,
-};
 
-use crate::{
-    activity::{ActId, Activity, ActivityDefinition, ActivityLog},
-    parser,
-};
+use crate::activity::{ActId, Activity};
+use crate::{converter, data};
 
 #[derive(Debug)]
 pub struct Store {
@@ -16,38 +11,44 @@ pub struct Store {
     id_lookup: BTreeMap<ActId, ActId>, // full_key -> full_key (or full_key -> ())
 }
 
+impl Default for Store {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Store {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             activities: HashMap::new(),
             id_lookup: BTreeMap::new(),
         }
     }
 
-    fn insert(&mut self, key: &str, value: Activity) {
+    pub fn load_data_from_fs(&mut self) -> Result<()> {
+        let definitions = data::load_all_activity_definitions()?;
+        let logs = data::load_all_activity_logs()?;
+        let activities = converter::recreate_activities(definitions, logs)?;
+
+        self.activities = activities;
+        self.rebuild_lookup_table()?;
+        Ok(())
+    }
+
+    fn rebuild_lookup_table(&mut self) -> Result<()> {
+        self.id_lookup = BTreeMap::new();
+        for (key, _) in self.activities.iter() {
+            self.id_lookup.insert(key.to_string(), key.to_string());
+        }
+        Ok(())
+    }
+
+    pub fn insert(&mut self, key: &str, value: Activity) {
         self.activities.insert(key.to_string(), value);
         self.id_lookup.insert(key.to_string(), key.to_string());
     }
 
-    fn load_all_in_memory() -> Result<()> {
-        let defs = Store::load_activity_definitions()?;
-        let logs = Store::load_activity_logs()?;
-        Ok(())
-    }
-
-    fn load_activity_definitions() -> Result<Vec<ActivityDefinition>> {
-        let raw_defs = fs::read_to_string("data/boat_defs.txt")?;
-        let act_defs = parser::parse_csv::<ActivityDefinition>(&raw_defs)?;
-        Ok(act_defs)
-    }
-
-    fn load_activity_logs() -> Result<Vec<ActivityLog>> {
-        let raw_logs = fs::read_to_string("data/boat_logs.txt")?;
-        let act_logs = parser::parse_csv::<ActivityLog>(&raw_logs)?;
-        Ok(act_logs)
-    }
-
-    fn lookup_activity(&self, id_prefix: &str) -> Option<&Activity> {
+    pub fn lookup_activity(&self, id_prefix: &str) -> Option<&Activity> {
         let start = Included(id_prefix.to_owned());
         // build an artificial upper bound: prefix with last char incremented
         let mut upper = id_prefix.to_owned();
