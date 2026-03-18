@@ -2,6 +2,13 @@
 name = "boat-lib"
 version = "0.1.0"
 edition = "2024"
+description = "Rust utility library for boat"
+repository = "https://github.com/coko7/boat-lib"
+authors = ["Coko <91132775+Coko7@users.noreply.github.com>"]
+license = "GPL-3.0-only"
+keywords = ["lib", "time-tracking", "time-tracker", "productivity"]
+categories = ["command-line-interface", "filesystem"]
+include = ["src/**", "Cargo.toml", "README.md"]
 
 [dependencies]
 anyhow = "1.0.102"
