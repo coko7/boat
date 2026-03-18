@@ -13,20 +13,20 @@ use crate::{
 #[derive(Debug)]
 pub struct Store {
     activities: HashMap<ActId, Activity>,
-    index: BTreeMap<ActId, ActId>, // full_key -> full_key (or full_key -> ())
+    id_lookup: BTreeMap<ActId, ActId>, // full_key -> full_key (or full_key -> ())
 }
 
 impl Store {
     fn new() -> Self {
         Self {
             activities: HashMap::new(),
-            index: BTreeMap::new(),
+            id_lookup: BTreeMap::new(),
         }
     }
 
     fn insert(&mut self, key: &str, value: Activity) {
         self.activities.insert(key.to_string(), value);
-        self.index.insert(key.to_string(), key.to_string());
+        self.id_lookup.insert(key.to_string(), key.to_string());
     }
 
     fn load_all_in_memory() -> Result<()> {
@@ -59,7 +59,7 @@ impl Store {
         }
         let end = Excluded(upper);
 
-        let mut iter = self.index.range((start, end));
+        let mut iter = self.id_lookup.range((start, end));
         let first = iter.next()?;
         if iter.next().is_some() {
             // more than one => not unique
