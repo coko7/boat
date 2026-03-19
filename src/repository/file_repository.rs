@@ -25,11 +25,12 @@ impl<T: for<'de> serde::Deserialize<'de> + serde::Serialize + std::fmt::Debug> R
     for FileRepository
 {
     fn initialize(&self) -> Result<()> {
-        fs::create_dir_all(&self.path)?;
+        if let Some(parent) = self.path.parent() {
+            fs::create_dir_all(parent)?;
+        }
 
         match File::create_new(&self.path) {
             Ok(mut file) => {
-                file.write_all(b"[]")?;
                 file.flush()?;
                 debug!("created new file repository: {}", self.path.display());
             }
@@ -53,6 +54,76 @@ impl<T: for<'de> serde::Deserialize<'de> + serde::Serialize + std::fmt::Debug> R
 
         file.write_all(csv_str.as_bytes())?;
         debug!("wrote csv to file: {}", self.path.display());
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::repository::Repository;
+    use serde::{Deserialize, Serialize};
+    use std::fs;
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct Dummy {
+        id: u32,
+        name: String,
+    }
+
+    fn example_entries() -> Vec<Dummy> {
+        vec![
+            Dummy {
+                id: 1,
+                name: "A".into(),
+            },
+            Dummy {
+                id: 2,
+                name: "B".into(),
+            },
+        ]
+    }
+
+    #[test]
+    fn test_initialize_creates_empty_file() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let file_path = dir.path().join("repo.csv");
+
+        let repo = FileRepository::new(&file_path);
+        <FileRepository as Repository<Dummy>>::initialize(&repo)?;
+
+        let content = fs::read_to_string(&file_path)?;
+        assert!(content.trim().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_save_and_load_roundtrip() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let file_path = dir.path().join("repo.csv");
+
+        let repo = FileRepository::new(&file_path);
+        <FileRepository as Repository<Dummy>>::initialize(&repo)?;
+
+        let entries = example_entries();
+        repo.save_all(&entries)?;
+
+        let loaded = repo.load_all()?;
+        assert_eq!(entries, loaded);
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_all_empty_returns_empty_vec() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let file_path = dir.path().join("repo.csv");
+
+        let repo = FileRepository::new(&file_path);
+        <FileRepository as Repository<Dummy>>::initialize(&repo)?;
+
+        let loaded: Vec<Dummy> = repo.load_all()?;
+        assert!(loaded.is_empty());
         Ok(())
     }
 }

@@ -35,7 +35,9 @@ where
 }
 
 pub fn serialize<T: Serialize>(data: &[T]) -> Result<String> {
-    let mut wtr = csv::Writer::from_writer(vec![]);
+    let mut wtr = csv::WriterBuilder::new()
+        .delimiter(b';')
+        .from_writer(vec![]);
 
     for record in data {
         wtr.serialize(record)?;
