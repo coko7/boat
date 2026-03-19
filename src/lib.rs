@@ -4,4 +4,3 @@ pub mod csv_io;
 pub mod repository;
 pub mod store;
 pub mod utils;
-pub mod validator;

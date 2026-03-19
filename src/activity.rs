@@ -93,3 +93,68 @@ pub struct ActivityLog {
     pub start: ActTime,
     pub end: Option<ActTime>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Local, TimeZone};
+    use std::collections::HashSet;
+
+    #[test]
+    fn test_new_activity_and_getters_setters() {
+        let mut act = Activity::new("abc", "run");
+        assert_eq!(act.id(), "abc");
+        assert_eq!(act.parent_id(), None);
+        assert_eq!(act.name(), "run");
+
+        act.set_name("walk");
+        assert_eq!(act.name(), "walk");
+
+        act.set_parent("parent1".to_string());
+        assert_eq!(act.parent_id(), Some("parent1".to_string()));
+
+        act.unset_parent();
+        assert_eq!(act.parent_id(), None);
+
+        let mut tags = HashSet::new();
+        tags.insert("urgent".to_string());
+        act.set_tags(tags.clone());
+        assert_eq!(act.tags(), &tags);
+    }
+
+    #[test]
+    fn test_from_definition() {
+        let mut tags = HashSet::new();
+        tags.insert("foo".to_string());
+
+        let def = ActivityDefinition {
+            id: "id1".to_string(),
+            parent_id: Some("pid".to_string()),
+            name: "Activity1".to_string(),
+            tags: tags.clone(),
+        };
+
+        let act = Activity::from_definition(def.clone());
+
+        assert_eq!(act.id(), &def.id);
+        assert_eq!(act.parent_id(), def.parent_id);
+        assert_eq!(act.name(), &def.name);
+        assert_eq!(act.tags(), &tags);
+        assert!(act.tracking().is_empty());
+    }
+
+    #[test]
+    fn test_register_log_and_tracking() {
+        let mut act = Activity::new("logid", "move");
+        let start = Local.with_ymd_and_hms(2024, 1, 1, 10, 0, 0).unwrap();
+        let end = Some(Local.with_ymd_and_hms(2024, 1, 1, 11, 0, 0).unwrap());
+        let log = ActivityLog {
+            id: "logid".to_string(),
+            start,
+            end,
+        };
+
+        act.register_log(log.clone());
+        assert!(act.tracking().contains(&(log.start, log.end)));
+    }
+}
