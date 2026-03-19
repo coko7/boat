@@ -55,10 +55,10 @@ fn apply_tracking_to_activities(
             .get_mut(&log.id)
             .with_context(|| format!("activity not found: {}", log.id))?;
 
-        if let Some(end) = log.end {
-            if log.start > end {
-                bail!("activity log has an impossible start time: {log:?}");
-            }
+        if let Some(end) = log.end
+            && log.start > end
+        {
+            bail!("activity log has an impossible start time: {log:?}");
         }
 
         if let Some(previous_log) = &previous_log {

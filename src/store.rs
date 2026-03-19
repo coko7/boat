@@ -1,33 +1,33 @@
 use anyhow::Result;
 use std::collections::{BTreeMap, HashMap};
 use std::ops::Bound::{Excluded, Included};
+use std::path::Path;
 
 use crate::activity::{ActId, Activity};
-use crate::{converter, data};
+use crate::converter;
+use crate::fs_loader::FileSystemLoader;
+use crate::loader::DataLoader;
 
 #[derive(Debug)]
-pub struct Store {
+pub struct ActivityStore {
+    loader: Box<dyn DataLoader>,
     activities: HashMap<ActId, Activity>,
     id_lookup: BTreeMap<ActId, ActId>, // full_key -> full_key (or full_key -> ())
 }
 
-impl Default for Store {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Store {
-    pub fn new() -> Self {
+impl ActivityStore {
+    pub fn create_fs_store(directory: &Path) -> Self {
         Self {
+            loader: Box::new(FileSystemLoader::new(directory)),
             activities: HashMap::new(),
             id_lookup: BTreeMap::new(),
         }
     }
 
     pub fn load_data_from_fs(&mut self) -> Result<()> {
-        let definitions = data::load_all_activity_definitions()?;
-        let logs = data::load_all_activity_logs()?;
+        self.loader.initialize()?;
+        let definitions = self.loader.load_all_activity_definitions()?;
+        let logs = self.loader.load_all_activity_logs()?;
         let activities = converter::recreate_activities(definitions, logs)?;
 
         self.activities = activities;
@@ -78,9 +78,36 @@ impl Store {
 mod tests {
     use super::*;
 
+    #[derive(Debug)]
+    struct TestLoader {}
+
+    impl DataLoader for TestLoader {
+        fn initialize(&self) -> Result<()> {
+            todo!()
+        }
+
+        fn load_all_activity_definitions(
+            &self,
+        ) -> Result<Vec<crate::activity::ActivityDefinition>> {
+            todo!()
+        }
+
+        fn load_all_activity_logs(&self) -> Result<Vec<crate::activity::ActivityLog>> {
+            todo!()
+        }
+    }
+
+    fn create_test_store() -> ActivityStore {
+        ActivityStore {
+            loader: Box::new(TestLoader {}),
+            activities: HashMap::new(),
+            id_lookup: BTreeMap::new(),
+        }
+    }
+
     #[test]
     fn lookup_activity_with_exact_match_works() {
-        let mut store = Store::new();
+        let mut store = create_test_store();
 
         let id = "0123456789abcdef";
         let act = Activity::new(&id, "foo");
@@ -92,7 +119,7 @@ mod tests {
 
     #[test]
     fn lookup_activity_with_unique_short_prefix_works() {
-        let mut store = Store::new();
+        let mut store = create_test_store();
 
         let id1 = "0123456789abcdef";
         let id2 = "fedcba9876543210";
@@ -110,7 +137,7 @@ mod tests {
 
     #[test]
     fn lookup_activity_with_ambiguous_prefix_returns_none() {
-        let mut store = Store::new();
+        let mut store = create_test_store();
 
         let id1 = "0123456789abcdef";
         let id2 = "0123aaaaaaaaaaaa";
@@ -126,7 +153,7 @@ mod tests {
 
     #[test]
     fn lookup_activity_with_no_match_returns_none() {
-        let mut store = Store::new();
+        let mut store = create_test_store();
         let id = "0123456789abcdef";
         store.insert(id, Activity::new(id, "foo"));
 
@@ -136,7 +163,7 @@ mod tests {
 
     #[test]
     fn full_key_still_needs_to_be_unique() {
-        let mut store = Store::new();
+        let mut store = create_test_store();
 
         let id = "0123456789abcdef";
         let act1 = Activity::new(id, "foo");
