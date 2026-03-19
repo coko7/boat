@@ -1,9 +1,9 @@
 use anyhow::{Result, anyhow};
 use log::debug;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 
-pub fn parse_csv_record<T>(input: &str) -> Result<T>
+pub fn deserialize_record<T>(input: &str) -> Result<T>
 where
     T: for<'de> Deserialize<'de>,
 {
@@ -16,7 +16,7 @@ where
     Ok(record)
 }
 
-pub fn parse_csv<T>(input: &str) -> Result<Vec<T>>
+pub fn deserialize<T>(input: &str) -> Result<Vec<T>>
 where
     T: for<'de> Deserialize<'de> + std::fmt::Debug,
 {
@@ -32,6 +32,18 @@ where
     }
 
     Ok(out)
+}
+
+pub fn serialize<T: Serialize>(data: &[T]) -> Result<String> {
+    let mut wtr = csv::Writer::from_writer(vec![]);
+
+    for record in data {
+        wtr.serialize(record)?;
+    }
+    wtr.flush()?;
+
+    let bytes = wtr.into_inner()?;
+    Ok(String::from_utf8(bytes)?)
 }
 
 pub fn deserialize_hashset<'de, D>(deserializer: D) -> Result<HashSet<String>, D::Error>
@@ -65,7 +77,7 @@ mod tests {
                 start: utils::parse_local_dt("2026-03-16 08:00:00")?,
                 end: Some(utils::parse_local_dt("2026-03-16 09:30:00")?),
             }],
-            parse_csv::<ActivityLog>(
+            deserialize::<ActivityLog>(
                 "id;start;end
 27e28d2ac61f35f7;2026-03-16T08:00:00+01:00;2026-03-16T09:30:00+01:00"
             )?
@@ -102,7 +114,7 @@ mod tests {
                 }
             ],
             // TODO: handle duplicate activity IDss
-            parse_csv::<ActivityDefinition>(
+            deserialize::<ActivityDefinition>(
                 "id;parent_id;name;tags
 1e702a61b5c30021;;take out trash;
 979f13ada1031e05;2588c8f8ac72af67;cook pasta;

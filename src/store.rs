@@ -1,34 +1,39 @@
 use anyhow::Result;
 use std::collections::{BTreeMap, HashMap};
 use std::ops::Bound::{Excluded, Included};
-use std::path::Path;
 
-use crate::activity::{ActId, Activity};
+use crate::activity::{ActId, Activity, ActivityDefinition, ActivityLog};
 use crate::converter;
-use crate::fs_loader::FileSystemLoader;
-use crate::loader::DataLoader;
+use crate::repository::Repository;
 
 #[derive(Debug)]
 pub struct ActivityStore {
-    loader: Box<dyn DataLoader>,
+    defs_repo: Box<dyn Repository<ActivityDefinition>>,
+    logs_repo: Box<dyn Repository<ActivityLog>>,
     activities: HashMap<ActId, Activity>,
     id_lookup: BTreeMap<ActId, ActId>, // full_key -> full_key (or full_key -> ())
 }
 
 impl ActivityStore {
-    pub fn create_fs_store(directory: &Path) -> Self {
+    pub fn new(
+        defs_repo: Box<dyn Repository<ActivityDefinition>>,
+        logs_repo: Box<dyn Repository<ActivityLog>>,
+    ) -> Self {
         Self {
-            loader: Box::new(FileSystemLoader::new(directory)),
+            defs_repo,
+            logs_repo,
             activities: HashMap::new(),
             id_lookup: BTreeMap::new(),
         }
     }
 
-    pub fn load_data_from_fs(&mut self) -> Result<()> {
-        self.loader.initialize()?;
-        let definitions = self.loader.load_all_activity_definitions()?;
-        let logs = self.loader.load_all_activity_logs()?;
-        let activities = converter::recreate_activities(definitions, logs)?;
+    pub fn initialize(&mut self) -> Result<()> {
+        self.defs_repo.initialize()?;
+        self.logs_repo.initialize()?;
+
+        let defs = self.defs_repo.load_all()?;
+        let logs = self.logs_repo.load_all()?;
+        let activities = converter::recreate_activities(defs, logs)?;
 
         self.activities = activities;
         self.rebuild_lookup_table()?;
@@ -79,29 +84,28 @@ mod tests {
     use super::*;
 
     #[derive(Debug)]
-    struct TestLoader {}
+    struct TestRepo {}
 
-    impl DataLoader for TestLoader {
+    impl<T: std::fmt::Debug> Repository<T> for TestRepo {
         fn initialize(&self) -> Result<()> {
             todo!()
         }
 
-        fn load_all_activity_definitions(
-            &self,
-        ) -> Result<Vec<crate::activity::ActivityDefinition>> {
+        fn load_all(&self) -> Result<Vec<T>> {
             todo!()
         }
 
-        fn load_all_activity_logs(&self) -> Result<Vec<crate::activity::ActivityLog>> {
+        fn save_all(&self, _data: &[T]) -> Result<()> {
             todo!()
         }
     }
 
     fn create_test_store() -> ActivityStore {
         ActivityStore {
-            loader: Box::new(TestLoader {}),
             activities: HashMap::new(),
             id_lookup: BTreeMap::new(),
+            defs_repo: Box::new(TestRepo {}),
+            logs_repo: Box::new(TestRepo {}),
         }
     }
 

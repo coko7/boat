@@ -83,7 +83,7 @@ pub struct ActivityDefinition {
     pub id: ActId,
     pub parent_id: Option<ActId>,
     pub name: String,
-    #[serde(deserialize_with = "crate::parser::deserialize_hashset")]
+    #[serde(deserialize_with = "crate::csv_io::deserialize_hashset")]
     pub tags: HashSet<String>,
 }
 
