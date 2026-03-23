@@ -177,6 +177,14 @@ pub fn get_current_ongoing(conn: &Connection) -> Result<Option<Activity>> {
 }
 
 pub fn start(conn: &mut Connection, activity_id: Id) -> Result<()> {
+    let current_ongoing = get_current_ongoing(conn)?;
+    if let Some(current) = current_ongoing {
+        if current.id == activity_id {
+            debug!("activity {activity_id} is already ongoing; no new log created.");
+            return Ok(());
+        }
+    }
+
     let tx = conn.transaction()?;
 
     debug!("stopping any ongoing activity first");

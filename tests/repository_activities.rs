@@ -3,6 +3,7 @@ use rusqlite::Connection;
 
 use boat_lib::models::activity::NewActivity;
 use boat_lib::repository::activities_repository as activities;
+use boat_lib::repository::logs_repository as logs;
 use boat_lib::repository::tags_repository as tags;
 
 fn setup_conn() -> Connection {
@@ -105,5 +106,81 @@ fn get_all_activities_lists_inserted() -> Result<()> {
     let names: Vec<_> = all.iter().map(|a| a.name.as_str()).collect();
     assert!(names.contains(&"Walk"));
     assert!(names.contains(&"Run"));
+    Ok(())
+}
+
+#[test]
+fn start_stop_and_get_current_ongoing() -> Result<()> {
+    let mut conn = setup_conn();
+
+    // Create two activities
+    let a1 = activities::create(
+        &mut conn,
+        NewActivity {
+            name: "First".to_string(),
+            description: None,
+            tags: vec![],
+        },
+    )?;
+    let a2 = activities::create(
+        &mut conn,
+        NewActivity {
+            name: "Second".to_string(),
+            description: None,
+            tags: vec![],
+        },
+    )?;
+
+    // No activity started yet
+    assert!(activities::get_current_ongoing(&conn)?.is_none());
+
+    // Start first activity
+    activities::start(&mut conn, a1.id)?;
+    let current = activities::get_current_ongoing(&conn)?;
+    assert!(current.is_some());
+    assert_eq!(current.as_ref().unwrap().id, a1.id);
+
+    // Start second activity (should stop the first, and start the second)
+    activities::start(&mut conn, a2.id)?;
+    let current = activities::get_current_ongoing(&conn)?;
+    assert!(current.is_some());
+    assert_eq!(current.as_ref().unwrap().id, a2.id);
+
+    // Stopping should make none ongoing
+    activities::stop_current(&conn)?;
+    assert!(activities::get_current_ongoing(&conn)?.is_none());
+    Ok(())
+}
+
+#[test]
+fn idempotent_start_activity_should_not_create_extra_log() -> Result<()> {
+    let mut conn = setup_conn();
+
+    // Create activity
+    let a1 = activities::create(
+        &mut conn,
+        NewActivity {
+            name: "A".to_string(),
+            description: None,
+            tags: vec![],
+        },
+    )?;
+
+    // Start it once
+    activities::start(&mut conn, a1.id)?;
+    let logs_before = logs::get_for_activity(&conn, a1.id)?;
+    assert_eq!(logs_before.len(), 1);
+    let log_id = logs_before[0].id;
+
+    // Start it again (should not create a new log)
+    activities::start(&mut conn, a1.id)?;
+    let logs_after = logs::get_for_activity(&conn, a1.id)?;
+    assert_eq!(
+        logs_after.len(),
+        1,
+        "second start should not create new log"
+    );
+    assert_eq!(logs_after[0].id, log_id, "should be the same log record");
+    assert_eq!(logs_after[0].ends_at, None, "log should still be ongoing");
     Ok(())
 }
