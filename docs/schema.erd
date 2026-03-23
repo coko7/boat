@@ -1,0 +1,16 @@
+[Activities]
+*id
+name
++description
+
+[Tags]
+*id
+name
+
+[Logs]
+*id
+starts_at
+ends_at
+
+Activities *--* Tags
+Activities 1--* Logs
