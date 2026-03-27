@@ -112,7 +112,6 @@ fn get_all_activities_lists_inserted() -> Result<()> {
 #[test]
 fn start_stop_and_get_current_ongoing() -> Result<()> {
     let mut conn = setup_conn();
-
     // Create two activities
     let a1 = activities::create(
         &mut conn,
@@ -155,7 +154,6 @@ fn start_stop_and_get_current_ongoing() -> Result<()> {
 #[test]
 fn idempotent_start_activity_should_not_create_extra_log() -> Result<()> {
     let mut conn = setup_conn();
-
     // Create activity
     let a1 = activities::create(
         &mut conn,
@@ -165,13 +163,11 @@ fn idempotent_start_activity_should_not_create_extra_log() -> Result<()> {
             tags: vec![],
         },
     )?;
-
     // Start it once
     activities::start(&mut conn, a1.id)?;
     let logs_before = logs::get_for_activity(&conn, a1.id)?;
     assert_eq!(logs_before.len(), 1);
     let log_id = logs_before[0].id;
-
     // Start it again (should not create a new log)
     activities::start(&mut conn, a1.id)?;
     let logs_after = logs::get_for_activity(&conn, a1.id)?;
@@ -182,5 +178,106 @@ fn idempotent_start_activity_should_not_create_extra_log() -> Result<()> {
     );
     assert_eq!(logs_after[0].id, log_id, "should be the same log record");
     assert_eq!(logs_after[0].ends_at, None, "log should still be ongoing");
+    Ok(())
+}
+
+#[test]
+fn idempotent_start_many_times_very_quickly() -> Result<()> {
+    let mut conn = setup_conn();
+    let a1 = activities::create(
+        &mut conn,
+        NewActivity {
+            name: "quick".to_string(),
+            description: None,
+            tags: vec![],
+        },
+    )?;
+    for _ in 0..10 {
+        let _ = activities::start(&mut conn, a1.id);
+    }
+    let logs_for_a1 = logs::get_for_activity(&conn, a1.id)?;
+    // Should still be only 1 log
+    assert_eq!(
+        logs_for_a1.len(),
+        1,
+        "Multiple fast start calls should create only 1 log"
+    );
+    Ok(())
+}
+
+#[test]
+fn negative_cases_activities() -> Result<()> {
+    let mut conn = setup_conn();
+    // 1. Try to start non-existent activity
+    let bad_id = 99999;
+    let result = activities::start(&mut conn, bad_id);
+    assert!(
+        result.is_err(),
+        "Should error when starting non-existent activity"
+    );
+    // 2. Try to stop when nothing started
+    // Should NOT error
+    let stopped = activities::stop_current(&conn);
+    assert!(stopped.is_ok(), "Stop when nothing ongoing should be ok");
+    // 3. Delete non-existent activity
+    let del = activities::delete(&conn, bad_id);
+    // Should succeed, deleting nothing
+    assert!(
+        del.is_ok(),
+        "Deleting non-existent activity should not error"
+    );
+    Ok(())
+}
+
+#[test]
+fn bulk_and_empty_operations() -> Result<()> {
+    let mut conn = setup_conn();
+    // Create no activities; get_all should return empty
+    let all = activities::get_all(&conn)?;
+    assert_eq!(all.len(), 0);
+    // Add a lot (100+) activities
+    for i in 0..120 {
+        let name = format!("act-{}", i);
+        let _ = activities::create(
+            &mut conn,
+            NewActivity {
+                name,
+                description: None,
+                tags: vec![],
+            },
+        )?;
+    }
+    let all = activities::get_all(&conn)?;
+    assert!(all.len() >= 120);
+    Ok(())
+}
+
+#[test]
+fn delete_activity_with_logs_deletes_logs_orphans() -> Result<()> {
+    let mut conn = setup_conn();
+    // Create activity
+    let act = activities::create(
+        &mut conn,
+        NewActivity {
+            name: "to delete".to_string(),
+            description: None,
+            tags: vec![],
+        },
+    )?;
+    // Start and stop a log
+    activities::start(&mut conn, act.id)?;
+    activities::stop_current(&conn)?;
+    // Should have a log
+    let logs_before = logs::get_for_activity(&conn, act.id)?;
+    assert_eq!(logs_before.len(), 1);
+    // Delete the activity
+    activities::delete(&conn, act.id)?;
+    // Logs should be removed (by cascade or logic)
+    let logs_after = logs::get_for_activity(&conn, act.id)?;
+    assert_eq!(
+        logs_after.len(),
+        0,
+        "Logs for deleted activity should be gone"
+    );
     Ok(())
 }
