@@ -211,3 +211,8 @@ pub fn stop_current(conn: &Connection) -> Result<()> {
     )?;
     Ok(())
 }
+
+pub fn cancel_current(conn: &Connection) -> Result<()> {
+    conn.execute("DELETE FROM logs WHERE ends_at IS NULL", [])?;
+    Ok(())
+}
