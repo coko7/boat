@@ -106,10 +106,21 @@ pub fn recent_with_activities(conn: &Connection, limit: i64) -> Result<Vec<LogWi
     Ok(logs)
 }
 
-pub fn update_end(conn: &Connection, id: Id, ends_at: DateTime<Utc>) -> Result<()> {
+pub fn update_start(conn: &Connection, id: Id, starts_at: DateTime<Utc>) -> Result<()> {
+    conn.execute(
+        "UPDATE logs SET starts_at = ?1 WHERE id = ?2",
+        rusqlite::params![starts_at.format("%Y-%m-%d %H:%M:%S").to_string(), id],
+    )?;
+    Ok(())
+}
+
+pub fn update_end(conn: &Connection, id: Id, ends_at: Option<DateTime<Utc>>) -> Result<()> {
     conn.execute(
         "UPDATE logs SET ends_at = ?1 WHERE id = ?2",
-        rusqlite::params![ends_at.format("%Y-%m-%d %H:%M:%S").to_string(), id],
+        rusqlite::params![
+            ends_at.map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string()),
+            id
+        ],
     )?;
     Ok(())
 }

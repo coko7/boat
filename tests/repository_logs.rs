@@ -50,6 +50,38 @@ fn create_and_get_log() -> Result<()> {
 }
 
 #[test]
+fn log_start_update() -> Result<()> {
+    let mut conn = setup_conn();
+    let activity_id = make_test_activity(&mut conn);
+    let now = chrono::NaiveDate::from_ymd_opt(2022, 2, 1)
+        .unwrap()
+        .and_hms_opt(12, 0, 0)
+        .unwrap();
+    let now_dt_utc = chrono::DateTime::<Utc>::from_naive_utc_and_offset(now, Utc);
+    let created = logs::create(
+        &conn,
+        NewLog {
+            activity_id,
+            starts_at: now_dt_utc,
+            ends_at: None,
+        },
+    )?;
+    let new_start_time = chrono::NaiveDate::from_ymd_opt(2022, 2, 1)
+        .unwrap()
+        .and_hms_opt(11, 0, 0)
+        .unwrap();
+    let new_start_time_utc =
+        chrono::DateTime::<Utc>::from_naive_utc_and_offset(new_start_time, Utc);
+    logs::update_start(&conn, created.id, new_start_time_utc)?;
+    let updated = logs::get_by_id(&conn, created.id)?;
+    assert_eq!(
+        updated.starts_at.timestamp(),
+        new_start_time_utc.timestamp()
+    );
+    Ok(())
+}
+
+#[test]
 fn log_end_update() -> Result<()> {
     let mut conn = setup_conn();
     let activity_id = make_test_activity(&mut conn);
@@ -71,7 +103,7 @@ fn log_end_update() -> Result<()> {
         .and_hms_opt(13, 0, 0)
         .unwrap();
     let end_time_utc = chrono::DateTime::<Utc>::from_naive_utc_and_offset(end_time, Utc);
-    logs::update_end(&conn, created.id, end_time_utc)?;
+    logs::update_end(&conn, created.id, Some(end_time_utc))?;
     let ended = logs::get_by_id(&conn, created.id)?;
     assert_eq!(ended.ends_at.unwrap().timestamp(), end_time_utc.timestamp());
     Ok(())
