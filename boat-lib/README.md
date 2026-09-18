@@ -1,28 +1,31 @@
 # ⚙️ boat-lib
 
-Rust utility library for [`boat`](https://github.com/coko7/boat).
+Rust utility library for `boat`.
 
 [![Crates info](https://img.shields.io/crates/v/boat-lib.svg)](https://crates.io/crates/boat-lib)
 [![License: GPL-3.0](https://img.shields.io/github/license/coko7/boat-lib?color=blue)](LICENSE)
 ![Rust](https://img.shields.io/github/languages/top/coko7/boat-lib?color=orange)
-[![Tests](https://github.com/coko7/boat-lib/actions/workflows/rust.yml/badge.svg)](https://github.com/coko7/boat-lib/actions/workflows/rust.yml)
+[![Tests](https://github.com/coko7/boat-lib/actions/workflows/rust.yml/badge.svg)](https://github.com/coko7/boat/actions/workflows/rust.yml)
 
 ## Schema
 
 Entity Relationship Diagram (ERD) made with [kroki.io](https://kroki.io/#try):
 
-![Entity Relationship Diagram](./docs/schema.svg)
+![Entity Relationship Diagram](./assets/schema.svg)
 
 ## Build options
 
 You can compile with:
+
 ```shell
 cargo build
 ```
+
 > [!NOTE]
 > `boat-lib` relies on [`rusqlite`](https://crates.io/crates/rusqlite) to interact with SQLite.
 > By default, it uses `rusqlite` without the `bundled` feature so it requires that you have SQLite installed on your system.
 > If you wish to use a bundled version of SQLite instead, you need to enable the `bundled-sqlite` feature:
+
 ```shell
 cargo build --features bundled-sqlite
 ```

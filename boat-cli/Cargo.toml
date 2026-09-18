@@ -5,10 +5,11 @@ edition = "2024"
 description = "Basic Opinionated Activity Tracker, a command line interface inspired by bartib"
 repository = "https://github.com/coko7/boat"
 authors = ["Coko <91132775+Coko7@users.noreply.github.com>"]
+readme = "../README.md"
 license = "GPL-3.0-only"
 keywords = ["cli", "time-tracking", "time-tracker", "productivity"]
 categories = ["command-line-utilities", "filesystem"]
-include = ["src/**", "Cargo.toml", "README.md"]
+include = ["src/**", "Cargo.toml"]
 
 [[bin]]
 name = "boat"
