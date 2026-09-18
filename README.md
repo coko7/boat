@@ -1,8 +1,12 @@
+<div align="center">
+
 # ⛵ boat
 
 `boat` - A **B**asic **O**pinionated **A**ctivity **T**racker, inspired by [bartib](https://github.com/nikolassv/bartib).
 
 ![](./assets/boat-cli.png)
+
+</div>
 
 <p align="center">
     <a href="https://crates.io/crates/boat-cli"><img src="https://img.shields.io/crates/v/boat-cli.svg" alt="Crates info"></a>
