@@ -3,11 +3,11 @@ name = "boat-cli"
 version_group = "boat"
 git_tag_name = "v{{ version }}"
 git_release_name = "v{{ version }}"
-changelog_path = "../CHANGELOG.md"
+changelog_path = "CHANGELOG.md"
 
 [[package]]
 name = "boat-lib"
 version_group = "boat"
 git_tag_enable = false
 git_release_enable = false
-changelog_path = "../CHANGELOG.md"
+changelog_path = "CHANGELOG.md"
