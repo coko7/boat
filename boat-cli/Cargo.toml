@@ -1,12 +1,12 @@
 [package]
 name = "boat-cli"
-version = "0.9.2"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "Basic Opinionated Activity Tracker, a command line interface inspired by bartib"
-repository = "https://github.com/coko7/boat"
-authors = ["Coko <91132775+Coko7@users.noreply.github.com>"]
+repository.workspace = true
+authors.workspace = true
 readme = "../README.md"
-license = "GPL-3.0-only"
+license.workspace = true
 keywords = ["cli", "time-tracking", "time-tracker", "productivity"]
 categories = ["command-line-utilities", "filesystem"]
 include = ["src/**", "Cargo.toml"]
@@ -17,17 +17,17 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }
-env_logger = "0.11.9"
-log = "0.4.29"
+env_logger = { workspace = true }
+log = { workspace = true }
 clap-verbosity-flag = "3.0.4"
-anyhow = "1.0.102"
+anyhow = { workspace = true }
 directories = "6.0.0"
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { workspace = true }
 toml = "1.0.7"
-rusqlite = "0.39.0"
-chrono = { version = "0.4.44", features = ["serde"] }
-serde_json = "1.0.149"
-boat-lib = { path = "../boat-lib", version = "0.5.0" }
+rusqlite = { workspace = true }
+chrono = { workspace = true }
+serde_json = { workspace = true }
+boat-lib = { workspace = true }
 tabular = { version = "0.2.0", features = ["ansi-cell"] }
 yansi = "1.0.1"
 dialoguer = "0.12.0"
@@ -36,7 +36,7 @@ which = "8.0.2"
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.0"
-tempfile = "3.8"
+tempfile = { workspace = true }
 
 [features]
 default = []

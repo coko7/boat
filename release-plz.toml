@@ -1,0 +1,7 @@
+[[package]]
+name = "boat-cli"
+version_group = "boat"
+
+[[package]]
+name = "boat-lib"
+version_group = "boat"

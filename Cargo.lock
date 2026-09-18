@@ -117,7 +117,7 @@ checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
 name = "boat-cli"
-version = "0.9.2"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -142,7 +142,7 @@ dependencies = [
 
 [[package]]
 name = "boat-lib"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",

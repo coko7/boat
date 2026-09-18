@@ -1,26 +1,26 @@
 [package]
 name = "boat-lib"
-version = "0.5.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "Rust utility library for boat"
-repository = "https://github.com/coko7/boat"
-authors = ["Coko <91132775+Coko7@users.noreply.github.com>"]
-license = "GPL-3.0-only"
+repository.workspace = true
+authors.workspace = true
+license.workspace = true
 keywords = ["lib", "time-tracking", "time-tracker", "productivity"]
 categories = ["database", "date-and-time"]
 include = ["src/**", "Cargo.toml", "README.md"]
 
 [dependencies]
-anyhow = "1.0.102"
-chrono = { version = "0.4.44", features = ["serde"] }
-env_logger = "0.11.9"
-log = "0.4.29"
-rusqlite = "0.39.0"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+anyhow = { workspace = true }
+chrono = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }
 
 [features]
 default = []
