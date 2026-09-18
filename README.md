@@ -1,14 +1,18 @@
+<div align="center">
+
 # ⛵ boat
 
 `boat` - A **B**asic **O**pinionated **A**ctivity **T**racker, inspired by [bartib](https://github.com/nikolassv/bartib).
 
 ![](./assets/boat-cli.png)
 
+</div>
+
 <p align="center">
     <a href="https://crates.io/crates/boat-cli"><img src="https://img.shields.io/crates/v/boat-cli.svg" alt="Crates info"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/github/license/coko7/boat-cli?color=blue" alt="License: MIT"></a>
-    <img src="https://img.shields.io/github/languages/top/coko7/boat-cli?color=orange" alt="Rust">
-    <a href="https://github.com/coko7/boat-cli/actions/workflows/rust.yml"><img src="https://github.com/coko7/boat-cli/actions/workflows/rust.yml/badge.svg" alt="Tests"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/coko7/boat?color=blue" alt="License: MIT"></a>
+    <img src="https://img.shields.io/github/languages/top/coko7/boat?color=orange" alt="Rust">
+    <a href="https://github.com/coko7/boat/actions/workflows/rust.yml"><img src="https://github.com/coko7/boat/actions/workflows/rust.yml/badge.svg" alt="Tests"></a>
 </p>
 
 Like its name implies, `boat` allows you to track the time
@@ -21,9 +25,6 @@ it also benefits from a [variety of handy aliases](#-usage).
 
 `boat` stores its data in a SQLite database file which is kept
 in the config directory by default (`.config/boat/boat.db`).
-
-This repository contains only the code for the command line application.
-It relies on [`boat-lib`](https://github.com/coko7/boat-lib) for core functions.
 
 ## Contents
 
@@ -72,9 +73,9 @@ cargo install boat-cli
 The other option is to build from source:
 
 ```sh
-git clone https://github.com/coko7/boat-cli.git
-cd boat-cli
-cargo build --release
+git clone https://github.com/coko7/boat.git
+cd boat
+cargo build --release -p boat-cli
 ```
 
 ### Install with a bundled version of SQLite
@@ -91,9 +92,9 @@ cargo install boat-cli --features bundled-sqlite
 When building from source:
 
 ```sh
-git clone https://github.com/coko7/boat-cli.git
-cd boat-cli
-cargo build --release --features bundled-sqlite
+git clone https://github.com/coko7/boat.git
+cd boat
+cargo build --release -p boat-cli --features bundled-sqlite
 ```
 
 ## ⚙️ Configuration
