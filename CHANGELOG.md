@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1](https://github.com/coko7/boat/compare/boat-lib-v1.0.0...boat-lib-v1.0.1) - 2026-09-18
+
+### Other
+
+- *(release-plz)* configure workflow for consolidated workspace ([#12](https://github.com/coko7/boat/pull/12))
+
 ## [1.0.0](https://github.com/coko7/boat/releases/tag/v1.0.0) - 2026-09-18
 
 ### Changed
