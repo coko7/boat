@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["boat-cli", "boat-lib"]
+members = ["boat-cli", "boat-lib", "boat-tui"]
 
 [workspace.package]
 version = "1.0.0"

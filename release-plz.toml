@@ -11,3 +11,10 @@ version_group = "boat"
 git_tag_enable = false
 git_release_enable = false
 changelog_path = "CHANGELOG.md"
+
+[[package]]
+name = "boat-tui"
+version_group = "boat"
+git_tag_enable = false
+git_release_enable = false
+changelog_path = "CHANGELOG.md"

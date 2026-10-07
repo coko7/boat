@@ -1,0 +1,29 @@
+[package]
+name = "boat-tui"
+version.workspace = true
+edition.workspace = true
+description = "Terminal user interface for boat, inspired by boat-fleet"
+repository.workspace = true
+authors.workspace = true
+license.workspace = true
+keywords = ["tui", "time-tracking", "time-tracker", "productivity", "ratatui"]
+categories = ["command-line-utilities"]
+include = ["src/**", "Cargo.toml"]
+
+[[bin]]
+name = "boat-tui"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+boat-lib = { workspace = true }
+chrono = { workspace = true }
+directories = "6.0.0"
+ratatui = "0.30.2"
+rusqlite = { workspace = true }
+serde = { workspace = true }
+toml = "1.1.6"
+
+[features]
+default = []
+bundled-sqlite = ["boat-lib/bundled-sqlite"]
