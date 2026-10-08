@@ -330,7 +330,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, activity: &Activity, now: DateTi
         [
             Constraint::Length(15),
             Constraint::Length(12),
-            Constraint::Length(10),
+            Constraint::Length(11),
         ],
     )
     .header(Row::new(["date", "time", "duration"]).bold().underlined())
@@ -433,7 +433,7 @@ fn draw_today_table(frame: &mut Frame, area: Rect, slices: &[Slice], total: Time
         [
             Constraint::Length(2),
             Constraint::Fill(1),
-            Constraint::Length(9),
+            Constraint::Length(11),
             Constraint::Length(4),
         ],
     )
@@ -736,7 +736,7 @@ fn truncate(s: &str, width: usize) -> String {
 fn format_duration(duration: TimeDelta) -> String {
     let secs = duration.num_seconds().max(0);
     format!(
-        "{}h{:02}m{:02}s",
+        "{}h {:02}m {:02}s",
         secs / 3600,
         (secs % 3600) / 60,
         secs % 60
