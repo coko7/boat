@@ -703,17 +703,72 @@ fn run_suspended(terminal: &mut DefaultTerminal, command: &mut Command) -> Resul
     Ok(())
 }
 
+/// Opens a URL with `$BROWSER` when set, falling back to the platform opener.
 fn open_url(url: &str) -> Result<()> {
+    let browser = std::env::var("BROWSER").unwrap_or_default();
+    let mut candidates = browser_commands(&browser, url);
     let opener = if cfg!(target_os = "macos") {
         "open"
     } else {
         "xdg-open"
     };
-    Command::new(opener)
-        .arg(url)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .with_context(|| format!("failed to launch {opener}"))?;
-    Ok(())
+    candidates.push(vec![opener.to_string(), url.to_string()]);
+
+    for argv in &candidates {
+        let spawned = Command::new(&argv[0])
+            .args(&argv[1..])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+        if spawned.is_ok() {
+            return Ok(());
+        }
+    }
+    anyhow::bail!("failed to open {url}: set $BROWSER or install {opener}")
+}
+
+/// Builds one command per `$BROWSER` entry. Follows the common convention:
+/// entries are separated by `:`, and `%s` is replaced by the URL (otherwise it is appended).
+fn browser_commands(browser: &str, url: &str) -> Vec<Vec<String>> {
+    browser
+        .split(':')
+        .filter_map(|entry| {
+            let mut argv: Vec<String> = entry.split_whitespace().map(str::to_string).collect();
+            if argv.is_empty() {
+                return None;
+            }
+            if argv.iter().any(|arg| arg.contains("%s")) {
+                argv.iter_mut()
+                    .for_each(|arg| *arg = arg.replace("%s", url));
+            } else {
+                argv.push(url.to_string());
+            }
+            Some(argv)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const URL: &str = "https://acme.atlassian.net/browse/PROJ-1";
+
+    #[test]
+    fn browser_commands_appends_url() {
+        assert_eq!(browser_commands("firefox", URL), [vec!["firefox", URL]]);
+    }
+
+    #[test]
+    fn browser_commands_handles_args_placeholder_and_fallbacks() {
+        assert_eq!(
+            browser_commands("firefox --new-tab %s:chromium", URL),
+            [vec!["firefox", "--new-tab", URL], vec!["chromium", URL]]
+        );
+    }
+
+    #[test]
+    fn browser_commands_empty_when_unset() {
+        assert!(browser_commands("", URL).is_empty());
+    }
 }
