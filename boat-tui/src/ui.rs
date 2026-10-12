@@ -160,6 +160,7 @@ fn draw_activities(frame: &mut Frame, area: Rect, app: &mut App) {
         })
         .collect();
     drop(visible);
+    app.list_height = list_area.height;
 
     if show_filter {
         let filter = Line::from(vec![
@@ -679,8 +680,9 @@ fn draw_help(frame: &mut Frame) {
     let navigation = [
         ("↑↓ j/k", "move selection"),
         ("g/G", "first/last activity"),
+        ("ctrl-u/d", "half page up/down"),
         ("PgUp/PgDn", "scroll by 10"),
-        ("esc", "clear filter"),
+        ("esc", "clear filter, or quit"),
         ("ctrl-c", "quit"),
     ];
 

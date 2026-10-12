@@ -214,6 +214,8 @@ pub struct App {
     /// Day shown in the report pane; `None` follows the current day
     pub report_day: Option<NaiveDate>,
     pub list_state: ListState,
+    /// Rows visible in the activities list at the last draw, for half-page jumps
+    pub list_height: u16,
     pub status: Option<Status>,
     pub should_quit: bool,
 }
@@ -228,6 +230,7 @@ impl App {
             filter: String::new(),
             report_day: None,
             list_state: ListState::default().with_selected(Some(0)),
+            list_height: 0,
             status: None,
             should_quit: false,
         };
@@ -376,6 +379,17 @@ impl App {
     }
 
     fn handle_browse_key(&mut self, key: KeyEvent, terminal: &mut DefaultTerminal) -> Result<()> {
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            // Half-page jumps, like vim
+            let half_page = (self.list_height / 2).max(1);
+            match key.code {
+                KeyCode::Char('d') => self.list_state.scroll_down_by(half_page),
+                KeyCode::Char('u') => self.list_state.scroll_up_by(half_page),
+                _ => {}
+            }
+            return Ok(());
+        }
+
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => self.list_state.select_next(),
             KeyCode::Up | KeyCode::Char('k') => self.list_state.select_previous(),
@@ -384,6 +398,7 @@ impl App {
             KeyCode::Home | KeyCode::Char('g') => self.list_state.select_first(),
             KeyCode::End | KeyCode::Char('G') => self.list_state.select_last(),
             KeyCode::Esc if !self.filter.is_empty() => self.set_filter(String::new()),
+            KeyCode::Esc => self.should_quit = true,
             code => {
                 if let Some(action) = Action::from_key(code) {
                     self.trigger(action, terminal)?;
