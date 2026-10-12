@@ -19,7 +19,7 @@ use std::{
 
 use crate::{
     config::Config,
-    form::{FormEvent, NewActivityForm},
+    form::{ActivityForm, FormEvent},
     ui,
 };
 
@@ -34,6 +34,7 @@ pub enum Action {
     Cancel,
     Delete,
     New,
+    Modify,
     Meeting,
     Note,
     Jira,
@@ -48,12 +49,13 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Action; 16] = [
+    pub const ALL: [Action; 17] = [
         Action::Start,
         Action::Stop,
         Action::Cancel,
         Action::Delete,
         Action::New,
+        Action::Modify,
         Action::Meeting,
         Action::Note,
         Action::Jira,
@@ -81,7 +83,8 @@ impl Action {
             KeyCode::Left | KeyCode::Char('[') => Action::PrevDay,
             KeyCode::Right | KeyCode::Char(']') => Action::NextDay,
             KeyCode::Char('t') => Action::Today,
-            KeyCode::Char('e') => Action::Edit,
+            KeyCode::Char('e') => Action::Modify,
+            KeyCode::Char('E') => Action::Edit,
             KeyCode::Char('C') => Action::Config,
             KeyCode::Char('?') => Action::Help,
             KeyCode::Char('q') => Action::Quit,
@@ -97,6 +100,7 @@ impl Action {
             Action::Cancel => "c",
             Action::Delete => "D",
             Action::New => "n",
+            Action::Modify => "e",
             Action::Meeting => "m",
             Action::Note => "o",
             Action::Jira => "J",
@@ -104,7 +108,7 @@ impl Action {
             Action::PrevDay => "←/[",
             Action::NextDay => "→/]",
             Action::Today => "t",
-            Action::Edit => "e",
+            Action::Edit => "E",
             Action::Config => "C",
             Action::Help => "?",
             Action::Quit => "q",
@@ -118,6 +122,7 @@ impl Action {
             Action::Cancel => "cancel",
             Action::Delete => "delete",
             Action::New => "new",
+            Action::Modify => "edit",
             Action::Meeting => "meeting",
             Action::Note => "note",
             Action::Jira => "jira",
@@ -125,7 +130,7 @@ impl Action {
             Action::PrevDay => "prev day",
             Action::NextDay => "next day",
             Action::Today => "today",
-            Action::Edit => "edit",
+            Action::Edit => "edit logs",
             Action::Config => "config",
             Action::Help => "help",
             Action::Quit => "quit",
@@ -139,6 +144,7 @@ impl Action {
             Action::Cancel => "cancel the current activity",
             Action::Delete => "delete the selected activity and all its logs",
             Action::New => "create a new activity",
+            Action::Modify => "edit name, description and tags of the selected activity",
             Action::Meeting => "start a meeting from a preset",
             Action::Note => "view/take notes for the selected activity",
             Action::Jira => "open the selected activity's jira issue",
@@ -146,7 +152,7 @@ impl Action {
             Action::PrevDay => "show the previous day in the report",
             Action::NextDay => "show the next day in the report",
             Action::Today => "jump the report back to today",
-            Action::Edit => "modify today's activity logs",
+            Action::Edit => "modify today's activity logs in $EDITOR",
             Action::Config => "tweak the boat configuration",
             Action::Help => "show all keybinds",
             Action::Quit => "quit",
@@ -196,7 +202,7 @@ pub enum Mode {
         placeholder: String,
         value: String,
     },
-    NewForm(NewActivityForm),
+    Form(ActivityForm),
     MeetingPicker(Picker),
     ConfirmCancel {
         message: String,
@@ -370,7 +376,7 @@ impl App {
                 Ok(())
             }
             Mode::Input { .. } => self.handle_input_key(key),
-            Mode::NewForm(_) => self.handle_form_key(key),
+            Mode::Form(_) => self.handle_form_key(key),
             Mode::MeetingPicker(_) => self.handle_picker_key(key),
             Mode::ConfirmCancel { .. } => self.handle_confirm_key(key),
             Mode::ConfirmDelete(_) => self.handle_confirm_delete_key(key),
@@ -440,7 +446,11 @@ impl App {
                 let activity = self.selected().context("no activity selected")?.clone();
                 self.mode = Mode::ConfirmDelete(Box::new(activity));
             }
-            Action::New => self.mode = Mode::NewForm(NewActivityForm::default()),
+            Action::New => self.mode = Mode::Form(ActivityForm::default()),
+            Action::Modify => {
+                let activity = self.selected().context("no activity selected")?;
+                self.mode = Mode::Form(ActivityForm::edit(activity));
+            }
             Action::Meeting => self.open_meeting_picker(),
             Action::Note => self.open_note(terminal)?,
             Action::Jira => self.open_jira()?,
@@ -552,15 +562,28 @@ impl App {
     }
 
     fn handle_form_key(&mut self, key: KeyEvent) -> Result<()> {
-        let Mode::NewForm(form) = &mut self.mode else {
+        let Mode::Form(form) = &mut self.mode else {
             return Ok(());
         };
 
+        let editing = form.editing;
         match form.handle_key(key) {
             FormEvent::None => {}
             FormEvent::Cancel => self.mode = Mode::Browse,
             FormEvent::Submit(input) => {
                 self.mode = Mode::Browse;
+                if let Some(id) = editing {
+                    // Empty description clears it; tags replace the whole set
+                    activities_repository::update(
+                        &mut self.conn,
+                        id,
+                        Some(&input.name),
+                        Some(input.description.as_deref().unwrap_or_default()),
+                        Some(&input.tags),
+                    )?;
+                    self.info(format!("Updated activity: {} ({id})", input.name));
+                    return Ok(());
+                }
                 self.create_activity(
                     NewActivity {
                         name: input.name,

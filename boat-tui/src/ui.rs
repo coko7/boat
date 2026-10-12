@@ -14,7 +14,7 @@ use ratatui::{
 
 use crate::{
     app::{Action, App, Mode, Picker, is_ongoing, last_active, tag_value},
-    form::{Field, NewActivityForm},
+    form::{ActivityForm, Field},
     report::DayReport,
 };
 
@@ -67,7 +67,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             value,
             ..
         } => draw_input(frame, prompt, placeholder, value),
-        Mode::NewForm(form) => draw_new_form(frame, form),
+        Mode::Form(form) => draw_form(frame, form),
         Mode::MeetingPicker(picker) => draw_picker(frame, picker),
         Mode::ConfirmCancel { message } => draw_confirm(frame, message),
         Mode::ConfirmDelete(activity) => draw_confirm_delete(frame, activity),
@@ -537,7 +537,14 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
         }
         (None, Mode::Filter) => hints(&[("type", "filter"), ("⏎", "keep"), ("esc", "clear")]),
         (None, Mode::Input { .. }) => hints(&[("⏎", "submit"), ("esc", "cancel")]),
-        (None, Mode::NewForm(_)) => hints(&[
+        (None, Mode::Form(form)) if form.editing.is_some() => hints(&[
+            ("tab/↓", "next field"),
+            ("shift-tab/↑", "previous"),
+            ("ctrl-u", "clear"),
+            ("⏎", "save"),
+            ("esc", "cancel"),
+        ]),
+        (None, Mode::Form(_)) => hints(&[
             ("tab/↓", "next field"),
             ("shift-tab/↑", "previous"),
             ("space", "toggle"),
@@ -594,18 +601,23 @@ fn draw_input(frame: &mut Frame, prompt: &str, placeholder: &str, value: &str) {
     frame.set_cursor_position((inner.x + value.chars().count() as u16, inner.y));
 }
 
-fn draw_new_form(frame: &mut Frame, form: &NewActivityForm) {
+fn draw_form(frame: &mut Frame, form: &ActivityForm) {
     const LABEL_WIDTH: usize = 13;
 
-    let area = popup(frame.area(), 70, Field::ALL.len() as u16 + 6);
+    let fields = form.fields();
+    let area = popup(frame.area(), 70, fields.len() as u16 + 6);
     frame.render_widget(Clear, area);
 
-    let block = titled_block(" New Activity ");
+    let title = match form.editing {
+        Some(id) => format!(" Edit Activity #{id} "),
+        None => " New Activity ".to_string(),
+    };
+    let block = titled_block(title);
     let inner = block.inner(area).inner(Margin::new(1, 1));
     frame.render_widget(block, area);
 
     let mut cursor = None;
-    let mut lines: Vec<Line> = Field::ALL
+    let mut lines: Vec<Line> = fields
         .into_iter()
         .enumerate()
         .map(|(row, field)| {

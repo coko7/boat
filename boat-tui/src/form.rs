@@ -1,3 +1,4 @@
+use boat_lib::{models::activity::Activity, repository::Id};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,7 +45,7 @@ impl Field {
 }
 
 /// What the form produced once submitted.
-pub struct NewActivityInput {
+pub struct ActivityInput {
     pub name: String,
     pub description: Option<String>,
     pub tags: Vec<String>,
@@ -54,11 +55,11 @@ pub struct NewActivityInput {
 pub enum FormEvent {
     None,
     Cancel,
-    Submit(NewActivityInput),
+    Submit(ActivityInput),
 }
 
 #[derive(Debug, Clone)]
-pub struct NewActivityForm {
+pub struct ActivityForm {
     pub name: String,
     pub description: String,
     pub customer: String,
@@ -67,9 +68,11 @@ pub struct NewActivityForm {
     pub start_now: bool,
     pub focus: Field,
     pub error: Option<String>,
+    /// Activity being edited; `None` when creating a new one
+    pub editing: Option<Id>,
 }
 
-impl Default for NewActivityForm {
+impl Default for ActivityForm {
     fn default() -> Self {
         Self {
             name: String::new(),
@@ -80,11 +83,49 @@ impl Default for NewActivityForm {
             start_now: true,
             focus: Field::Name,
             error: None,
+            editing: None,
         }
     }
 }
 
-impl NewActivityForm {
+impl ActivityForm {
+    /// Pre-fills the form from an existing activity. The first `customer:` and `jira:`
+    /// tags go to their dedicated fields, every other tag to the extra tags field.
+    pub fn edit(activity: &Activity) -> Self {
+        let mut tags: Vec<&String> = activity.tags.iter().collect();
+        tags.sort();
+
+        let mut take = |prefix: &str| {
+            let index = tags.iter().position(|t| t.starts_with(prefix))?;
+            Some(tags.remove(index)[prefix.len()..].to_string())
+        };
+        let customer = take("customer:").unwrap_or_default();
+        let jira = take("jira:").unwrap_or_default();
+
+        Self {
+            name: activity.name.clone(),
+            description: activity.description.clone().unwrap_or_default(),
+            customer,
+            jira,
+            tags: tags
+                .into_iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+                .join(" "),
+            start_now: false,
+            editing: Some(activity.id),
+            ..Self::default()
+        }
+    }
+
+    /// Fields shown in the form; starting only makes sense for a new activity.
+    pub fn fields(&self) -> Vec<Field> {
+        Field::ALL
+            .into_iter()
+            .filter(|f| self.editing.is_none() || *f != Field::StartNow)
+            .collect()
+    }
+
     pub fn value(&self, field: Field) -> &str {
         match field {
             Field::Name => &self.name,
@@ -108,12 +149,10 @@ impl NewActivityForm {
     }
 
     fn move_focus(&mut self, delta: isize) {
-        let len = Field::ALL.len() as isize;
-        let index = Field::ALL
-            .iter()
-            .position(|f| *f == self.focus)
-            .unwrap_or(0) as isize;
-        self.focus = Field::ALL[(index + delta).rem_euclid(len) as usize];
+        let fields = self.fields();
+        let len = fields.len() as isize;
+        let index = fields.iter().position(|f| *f == self.focus).unwrap_or(0) as isize;
+        self.focus = fields[(index + delta).rem_euclid(len) as usize];
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> FormEvent {
@@ -173,7 +212,7 @@ impl NewActivityForm {
             }
         }
 
-        FormEvent::Submit(NewActivityInput {
+        FormEvent::Submit(ActivityInput {
             name: name.to_string(),
             description,
             tags,
@@ -194,7 +233,7 @@ fn slugify(s: &str) -> String {
 mod tests {
     use super::*;
 
-    fn type_str(form: &mut NewActivityForm, s: &str) {
+    fn type_str(form: &mut ActivityForm, s: &str) {
         for c in s.chars() {
             form.handle_key(KeyEvent::from(KeyCode::Char(c)));
         }
@@ -202,7 +241,7 @@ mod tests {
 
     #[test]
     fn submit_requires_name() {
-        let mut form = NewActivityForm {
+        let mut form = ActivityForm {
             focus: Field::Jira,
             ..Default::default()
         };
@@ -216,7 +255,7 @@ mod tests {
 
     #[test]
     fn submit_builds_tags_from_fields() {
-        let mut form = NewActivityForm::default();
+        let mut form = ActivityForm::default();
         type_str(&mut form, "fix login");
         form.handle_key(KeyEvent::from(KeyCode::Tab));
         form.handle_key(KeyEvent::from(KeyCode::Tab));
@@ -240,10 +279,39 @@ mod tests {
 
     #[test]
     fn space_toggles_start_now_only_on_that_field() {
-        let mut form = NewActivityForm::default();
+        let mut form = ActivityForm::default();
         form.handle_key(KeyEvent::from(KeyCode::BackTab));
         assert_eq!(form.focus, Field::StartNow);
         form.handle_key(KeyEvent::from(KeyCode::Char(' ')));
         assert!(!form.start_now);
+    }
+
+    #[test]
+    fn edit_prefills_fields_and_round_trips_tags() {
+        let activity = Activity {
+            id: 7,
+            name: "fix login".to_string(),
+            description: Some("users locked out".to_string()),
+            tags: ["customer:acme-corp", "jira:PROJ-1", "task:bug", "urgent"]
+                .map(String::from)
+                .into(),
+            logs: vec![],
+        };
+
+        let mut form = ActivityForm::edit(&activity);
+        assert_eq!(form.editing, Some(7));
+        assert_eq!(form.customer, "acme-corp");
+        assert_eq!(form.jira, "PROJ-1");
+        assert_eq!(form.tags, "task:bug urgent");
+        assert!(!form.fields().contains(&Field::StartNow));
+
+        let FormEvent::Submit(input) = form.handle_key(KeyEvent::from(KeyCode::Enter)) else {
+            panic!("expected submit");
+        };
+        assert_eq!(input.description.as_deref(), Some("users locked out"));
+        assert_eq!(
+            input.tags,
+            ["customer:acme-corp", "jira:PROJ-1", "task:bug", "urgent"]
+        );
     }
 }
