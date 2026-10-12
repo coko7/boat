@@ -550,7 +550,18 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
         (None, Mode::ConfirmCancel { .. }) => hints(&[("y", "confirm"), ("n", "abort")]),
         (None, Mode::Help) => hints(&[("any key", "close")]),
     };
-    frame.render_widget(line, area);
+    frame.render_widget(trim_line(line).centered(), area);
+}
+
+/// Strips the padding around the first and last spans so centering is exact.
+fn trim_line(mut line: Line<'static>) -> Line<'static> {
+    if let Some(first) = line.spans.first_mut() {
+        first.content = first.content.trim_start().to_string().into();
+    }
+    if let Some(last) = line.spans.last_mut() {
+        last.content = last.content.trim_end().to_string().into();
+    }
+    line
 }
 
 fn hints(pairs: &[(&str, &str)]) -> Line<'static> {
