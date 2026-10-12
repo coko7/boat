@@ -70,6 +70,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         Mode::NewForm(form) => draw_new_form(frame, form),
         Mode::MeetingPicker(picker) => draw_picker(frame, picker),
         Mode::ConfirmCancel { message } => draw_confirm(frame, message),
+        Mode::ConfirmDelete(activity) => draw_confirm_delete(frame, activity),
         Mode::Help => draw_help(frame),
     }
 }
@@ -548,6 +549,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
             hints(&[("↑↓", "move"), ("⏎", "start"), ("esc", "cancel")])
         }
         (None, Mode::ConfirmCancel { .. }) => hints(&[("y", "confirm"), ("n", "abort")]),
+        (None, Mode::ConfirmDelete(_)) => hints(&[("y", "delete"), ("n/esc", "keep")]),
         (None, Mode::Help) => hints(&[("any key", "close")]),
     };
     frame.render_widget(trim_line(line).centered(), area);
@@ -683,6 +685,73 @@ fn draw_confirm(frame: &mut Frame, message: &str) {
         Paragraph::new(text)
             .wrap(Wrap { trim: true })
             .block(titled_block(" Confirm ").border_style(Style::new().yellow())),
+        area,
+    );
+}
+
+fn draw_confirm_delete(frame: &mut Frame, activity: &Activity) {
+    const MAX_LOG_ROWS: usize = 10;
+
+    let now = Utc::now();
+    let mut logs: Vec<_> = activity.logs.iter().collect();
+    logs.sort_by_key(|l| std::cmp::Reverse(l.starts_at));
+    let total: TimeDelta = logs
+        .iter()
+        .map(|l| l.ends_at.unwrap_or(now) - l.starts_at)
+        .sum();
+
+    let mut lines = vec![
+        Line::from(vec![
+            Span::raw("Delete activity "),
+            Span::raw(format!("#{} \"{}\"", activity.id, activity.name)).bold(),
+            Span::raw("?"),
+        ]),
+        Line::default(),
+    ];
+    if is_ongoing(activity) {
+        lines.push(
+            Line::from("⚠ this activity is currently running")
+                .yellow()
+                .bold(),
+        );
+    }
+    if logs.is_empty() {
+        lines.push(Line::from("It has no logs.").dim());
+    } else {
+        lines.push(Line::from(vec![
+            Span::raw("⚠ This will also permanently delete ").red(),
+            Span::raw(format!("{} log(s)", logs.len())).red().bold(),
+            Span::raw(" totalling ").red(),
+            Span::raw(format_duration(total)).red().bold(),
+            Span::raw(":").red(),
+        ]));
+        for log in logs.iter().take(MAX_LOG_ROWS) {
+            let start = log.starts_at.with_timezone(&Local);
+            let end = log
+                .ends_at
+                .map(|e| e.with_timezone(&Local).format("%H:%M").to_string())
+                .unwrap_or_else(|| "now".to_string());
+            lines.push(Line::from(vec![
+                Span::raw(format!("  {}  ", start.format("%a %Y-%m-%d"))).dim(),
+                Span::raw(format!("{}–{end:<5}  ", start.format("%H:%M"))),
+                Span::styled(
+                    format_duration(log.ends_at.unwrap_or(now) - log.starts_at),
+                    Style::new().fg(ACCENT),
+                ),
+            ]));
+        }
+        if logs.len() > MAX_LOG_ROWS {
+            lines.push(Line::from(format!("  … and {} more", logs.len() - MAX_LOG_ROWS)).dim());
+        }
+    }
+    lines.push(Line::default());
+    lines.push(Line::from("This cannot be undone.  [y]es, delete / [n]o, keep").centered());
+
+    let area = popup(frame.area(), 76, lines.len() as u16 + 2);
+    frame.render_widget(Clear, area);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(titled_block(" Delete Activity ").border_style(Style::new().red().bold())),
         area,
     );
 }

@@ -32,6 +32,7 @@ pub enum Action {
     Start,
     Stop,
     Cancel,
+    Delete,
     New,
     Meeting,
     Note,
@@ -47,10 +48,11 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Action; 15] = [
+    pub const ALL: [Action; 16] = [
         Action::Start,
         Action::Stop,
         Action::Cancel,
+        Action::Delete,
         Action::New,
         Action::Meeting,
         Action::Note,
@@ -70,6 +72,7 @@ impl Action {
             KeyCode::Enter | KeyCode::Char('r') => Action::Start,
             KeyCode::Char('s') => Action::Stop,
             KeyCode::Char('c') => Action::Cancel,
+            KeyCode::Char('D') => Action::Delete,
             KeyCode::Char('n') => Action::New,
             KeyCode::Char('m') => Action::Meeting,
             KeyCode::Char('o') => Action::Note,
@@ -92,6 +95,7 @@ impl Action {
             Action::Start => "⏎/r",
             Action::Stop => "s",
             Action::Cancel => "c",
+            Action::Delete => "D",
             Action::New => "n",
             Action::Meeting => "m",
             Action::Note => "o",
@@ -112,6 +116,7 @@ impl Action {
             Action::Start => "start",
             Action::Stop => "stop",
             Action::Cancel => "cancel",
+            Action::Delete => "delete",
             Action::New => "new",
             Action::Meeting => "meeting",
             Action::Note => "note",
@@ -132,6 +137,7 @@ impl Action {
             Action::Start => "start/resume the selected activity",
             Action::Stop => "pause/stop the current activity",
             Action::Cancel => "cancel the current activity",
+            Action::Delete => "delete the selected activity and all its logs",
             Action::New => "create a new activity",
             Action::Meeting => "start a meeting from a preset",
             Action::Note => "view/take notes for the selected activity",
@@ -195,6 +201,8 @@ pub enum Mode {
     ConfirmCancel {
         message: String,
     },
+    /// Snapshot of the activity so the warning stays stable while the list refreshes
+    ConfirmDelete(Box<Activity>),
     Help,
 }
 
@@ -365,6 +373,7 @@ impl App {
             Mode::NewForm(_) => self.handle_form_key(key),
             Mode::MeetingPicker(_) => self.handle_picker_key(key),
             Mode::ConfirmCancel { .. } => self.handle_confirm_key(key),
+            Mode::ConfirmDelete(_) => self.handle_confirm_delete_key(key),
             Mode::Help => {
                 self.mode = Mode::Browse;
                 Ok(())
@@ -426,6 +435,10 @@ impl App {
                 self.mode = Mode::ConfirmCancel {
                     message: format!("Cancel {name}?"),
                 };
+            }
+            Action::Delete => {
+                let activity = self.selected().context("no activity selected")?.clone();
+                self.mode = Mode::ConfirmDelete(Box::new(activity));
             }
             Action::New => self.mode = Mode::NewForm(NewActivityForm::default()),
             Action::Meeting => self.open_meeting_picker(),
@@ -679,6 +692,26 @@ impl App {
                 let name = self.current_label().unwrap_or_default();
                 activities_repository::cancel_current(&self.conn)?;
                 self.info(format!("Canceled activity: {name}"));
+            }
+            KeyCode::Char('n') | KeyCode::Esc => self.mode = Mode::Browse,
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Deleting is irreversible, so only an explicit `y` confirms (not Enter).
+    fn handle_confirm_delete_key(&mut self, key: KeyEvent) -> Result<()> {
+        let Mode::ConfirmDelete(activity) = &self.mode else {
+            return Ok(());
+        };
+
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                let (id, name, logs) = (activity.id, activity.name.clone(), activity.logs.len());
+                self.mode = Mode::Browse;
+                // Logs are removed by the ON DELETE CASCADE foreign key
+                activities_repository::delete(&self.conn, id)?;
+                self.info(format!("Deleted activity: {name} ({id}) and {logs} log(s)"));
             }
             KeyCode::Char('n') | KeyCode::Esc => self.mode = Mode::Browse,
             _ => {}
