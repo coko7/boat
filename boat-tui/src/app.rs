@@ -3,7 +3,7 @@ use boat_lib::{
     models::activity::{Activity, NewActivity},
     repository::{Id, activities_repository},
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, NaiveDate, TimeDelta, Utc};
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
@@ -37,6 +37,9 @@ pub enum Action {
     Note,
     Jira,
     Filter,
+    PrevDay,
+    NextDay,
+    Today,
     Edit,
     Config,
     Help,
@@ -44,7 +47,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Action; 12] = [
+    pub const ALL: [Action; 15] = [
         Action::Start,
         Action::Stop,
         Action::Cancel,
@@ -53,6 +56,9 @@ impl Action {
         Action::Note,
         Action::Jira,
         Action::Filter,
+        Action::PrevDay,
+        Action::NextDay,
+        Action::Today,
         Action::Edit,
         Action::Config,
         Action::Help,
@@ -69,6 +75,9 @@ impl Action {
             KeyCode::Char('o') => Action::Note,
             KeyCode::Char('J') => Action::Jira,
             KeyCode::Char('/') => Action::Filter,
+            KeyCode::Left | KeyCode::Char('[') => Action::PrevDay,
+            KeyCode::Right | KeyCode::Char(']') => Action::NextDay,
+            KeyCode::Char('t') => Action::Today,
             KeyCode::Char('e') => Action::Edit,
             KeyCode::Char('C') => Action::Config,
             KeyCode::Char('?') => Action::Help,
@@ -88,6 +97,9 @@ impl Action {
             Action::Note => "o",
             Action::Jira => "J",
             Action::Filter => "/",
+            Action::PrevDay => "←/[",
+            Action::NextDay => "→/]",
+            Action::Today => "t",
             Action::Edit => "e",
             Action::Config => "C",
             Action::Help => "?",
@@ -105,6 +117,9 @@ impl Action {
             Action::Note => "note",
             Action::Jira => "jira",
             Action::Filter => "filter",
+            Action::PrevDay => "prev day",
+            Action::NextDay => "next day",
+            Action::Today => "today",
             Action::Edit => "edit",
             Action::Config => "config",
             Action::Help => "help",
@@ -122,6 +137,9 @@ impl Action {
             Action::Note => "view/take notes for the selected activity",
             Action::Jira => "open the selected activity's jira issue",
             Action::Filter => "filter activities by name, tag or id",
+            Action::PrevDay => "show the previous day in the report",
+            Action::NextDay => "show the next day in the report",
+            Action::Today => "jump the report back to today",
             Action::Edit => "modify today's activity logs",
             Action::Config => "tweak the boat configuration",
             Action::Help => "show all keybinds",
@@ -193,6 +211,8 @@ pub struct App {
     /// All activities, most recently active first
     pub activities: Vec<Activity>,
     pub filter: String,
+    /// Day shown in the report pane; `None` follows the current day
+    pub report_day: Option<NaiveDate>,
     pub list_state: ListState,
     pub status: Option<Status>,
     pub should_quit: bool,
@@ -206,6 +226,7 @@ impl App {
             mode: Mode::Browse,
             activities: vec![],
             filter: String::new(),
+            report_day: None,
             list_state: ListState::default().with_selected(Some(0)),
             status: None,
             should_quit: false,
@@ -406,10 +427,24 @@ impl App {
                 let path = self.config.config_file.clone();
                 run_suspended(terminal, Command::new(editor()).arg(path))?;
             }
+            Action::PrevDay => self.shift_report_day(-1),
+            Action::NextDay => self.shift_report_day(1),
+            Action::Today => self.report_day = None,
             Action::Help => self.mode = Mode::Help,
             Action::Quit => self.should_quit = true,
         }
         Ok(())
+    }
+
+    pub fn report_day(&self) -> NaiveDate {
+        self.report_day.unwrap_or_else(|| Local::now().date_naive())
+    }
+
+    /// Moves the report by `days`, never past today.
+    fn shift_report_day(&mut self, days: i64) {
+        let today = Local::now().date_naive();
+        let day = self.report_day() + TimeDelta::days(days);
+        self.report_day = (day < today).then_some(day);
     }
 
     fn set_filter(&mut self, filter: String) {

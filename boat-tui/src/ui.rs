@@ -349,20 +349,44 @@ struct Slice {
 }
 
 fn draw_today(frame: &mut Frame, area: Rect, app: &App) {
-    let report = DayReport::today(&app.activities, Utc::now());
+    let day = app.report_day();
+    let today = Local::now().date_naive();
+    let report = DayReport::for_day(&app.activities, day, Utc::now());
+
+    let day_label = match (today - day).num_days() {
+        0 => "Today".to_string(),
+        1 => format!("Yesterday · {}", day.format("%a %d %b")),
+        _ => day.format("%a %d %b %Y").to_string(),
+    };
+    let arrow = |enabled: bool, symbol: &'static str| {
+        if enabled {
+            Span::styled(symbol, Style::new().fg(ACCENT).bold())
+        } else {
+            Span::raw(symbol).dim()
+        }
+    };
     let block = titled_block(Line::from(vec![
-        Span::raw(" Today ").bold(),
+        Span::raw(" "),
+        arrow(true, "‹"),
+        Span::raw(format!(" {day_label} ")).bold(),
+        arrow(day < today, "›"),
         Span::styled(
-            format!("{} ", format_duration(report.total)),
+            format!(" {} ", format_duration(report.total)),
             Style::new().fg(ACCENT),
         ),
-    ]));
+    ]))
+    .title_bottom(Line::from(" ←/→ day · t today ").dim().right_aligned());
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
     if report.entries.is_empty() {
+        let message = if day == today {
+            "nothing tracked today"
+        } else {
+            "nothing tracked on this day"
+        };
         frame.render_widget(
-            Paragraph::new("nothing tracked today").dim().centered(),
+            Paragraph::new(message).dim().centered(),
             inner.inner(Margin::new(0, inner.height.saturating_sub(1) / 2)),
         );
         return;
@@ -497,7 +521,12 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
         (Some(status), _) if status.is_error => Line::from(format!(" ⚠ {}", status.message)).red(),
         (Some(status), _) => Line::from(format!(" ℹ {}", status.message)).green(),
         (None, Mode::Browse) => {
-            let mut spans = vec![key_span("↑↓"), Span::raw(" move  ").dim()];
+            let mut spans = vec![
+                key_span("↑↓"),
+                Span::raw(" move  ").dim(),
+                key_span("←→"),
+                Span::raw(" day  ").dim(),
+            ];
             for action in Action::ALL.into_iter().filter(|a| a.is_important()) {
                 spans.push(key_span(action.key_hint()));
                 spans.push(Span::raw(format!(" {}  ", action.label())).dim());

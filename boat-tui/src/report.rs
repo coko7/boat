@@ -1,5 +1,5 @@
 use boat_lib::{models::activity::Activity, repository::Id};
-use chrono::{DateTime, Local, TimeDelta, Utc};
+use chrono::{DateTime, Local, NaiveDate, TimeDelta, Utc};
 
 pub struct ReportEntry {
     pub activity_id: Id,
@@ -15,16 +15,15 @@ pub struct DayReport {
 }
 
 impl DayReport {
-    /// Time spent on each activity since local midnight.
-    /// Logs crossing midnight only count the part that falls on today.
-    pub fn today(activities: &[Activity], now: DateTime<Utc>) -> Self {
-        let day_start = now
-            .with_timezone(&Local)
-            .date_naive()
-            .and_hms_opt(0, 0, 0)
-            .and_then(|midnight| midnight.and_local_timezone(Local).earliest())
-            .map(|midnight| midnight.with_timezone(&Utc))
-            .unwrap_or(now);
+    /// Time spent on each activity during the given local day.
+    /// Logs crossing midnight only count the part that falls on that day.
+    pub fn for_day(activities: &[Activity], day: NaiveDate, now: DateTime<Utc>) -> Self {
+        let day_start = local_midnight(day).unwrap_or(now);
+        let day_end = day
+            .succ_opt()
+            .and_then(local_midnight)
+            .unwrap_or(now)
+            .min(now);
 
         let mut entries: Vec<ReportEntry> = activities
             .iter()
@@ -34,10 +33,11 @@ impl DayReport {
                     .logs
                     .iter()
                     .map(|log| {
-                        ongoing |= log.ends_at.is_none();
                         let start = log.starts_at.max(day_start);
-                        let end = log.ends_at.unwrap_or(now).min(now);
-                        (end - start).max(TimeDelta::zero())
+                        let end = log.ends_at.unwrap_or(now).min(day_end);
+                        let duration = (end - start).max(TimeDelta::zero());
+                        ongoing |= log.ends_at.is_none() && !duration.is_zero();
+                        duration
                     })
                     .sum::<TimeDelta>();
 
@@ -61,6 +61,13 @@ impl DayReport {
         }
         entry.duration.num_milliseconds() as f64 / self.total.num_milliseconds() as f64
     }
+}
+
+fn local_midnight(day: NaiveDate) -> Option<DateTime<Utc>> {
+    day.and_hms_opt(0, 0, 0)?
+        .and_local_timezone(Local)
+        .earliest()
+        .map(|midnight| midnight.with_timezone(&Utc))
 }
 
 #[cfg(test)]
@@ -126,7 +133,7 @@ mod tests {
             activity(5, vec![]),
         ];
 
-        let report = DayReport::today(&activities, now);
+        let report = DayReport::for_day(&activities, Local::now().date_naive(), now);
         assert_eq!(report.entries.len(), 3);
         assert_eq!(report.total, TimeDelta::hours(3));
         assert!(
@@ -145,5 +152,35 @@ mod tests {
         );
         let share = report.share(&report.entries[0]);
         assert!((share - 1.0 / 3.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn past_day_only_counts_that_day() {
+        let now = local_today(12, 0);
+        let yesterday = Local::now().date_naive().pred_opt().unwrap();
+        let activities = vec![
+            // yesterday 23:00 -> today 01:00: 1h yesterday
+            activity(
+                1,
+                vec![(
+                    local_today(0, 0) - TimeDelta::hours(1),
+                    Some(local_today(1, 0)),
+                )],
+            ),
+            // started yesterday 22:00 and still running: 2h yesterday, flagged as ongoing
+            activity(2, vec![(local_today(0, 0) - TimeDelta::hours(2), None)]),
+            // today only -> excluded
+            activity(3, vec![(local_today(9, 0), Some(local_today(10, 0)))]),
+        ];
+
+        let report = DayReport::for_day(&activities, yesterday, now);
+        assert_eq!(report.entries.len(), 2);
+        assert_eq!(report.total, TimeDelta::hours(3));
+        assert!(
+            report
+                .entries
+                .iter()
+                .all(|e| e.ongoing == (e.activity_id == 2))
+        );
     }
 }
