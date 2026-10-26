@@ -6,6 +6,7 @@ use crate::{app::App, config::Config};
 mod app;
 mod config;
 mod form;
+mod input;
 mod report;
 mod ui;
 

@@ -15,6 +15,7 @@ use ratatui::{
 use crate::{
     app::{Action, App, Mode, Picker, is_ongoing, last_active, tag_value},
     form::{ActivityForm, Field},
+    input::TextInput,
     report::DayReport,
 };
 
@@ -166,11 +167,11 @@ fn draw_activities(frame: &mut Frame, area: Rect, app: &mut App) {
     if show_filter {
         let filter = Line::from(vec![
             Span::styled("/", Style::new().fg(ACCENT)),
-            Span::raw(app.filter.clone()),
+            Span::raw(app.filter.value().to_string()),
         ]);
         frame.render_widget(filter, filter_area);
         if matches!(app.mode, Mode::Filter) {
-            let x = filter_area.x + 1 + app.filter.chars().count() as u16;
+            let x = filter_area.x + 1 + app.filter.cursor() as u16;
             frame.set_cursor_position((x, filter_area.y));
         }
     }
@@ -540,7 +541,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
         (None, Mode::Form(form)) if form.editing.is_some() => hints(&[
             ("tab/↓", "next field"),
             ("shift-tab/↑", "previous"),
-            ("ctrl-u", "clear"),
+            ("ctrl-w", "delete word"),
             ("⏎", "save"),
             ("esc", "cancel"),
         ]),
@@ -548,7 +549,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
             ("tab/↓", "next field"),
             ("shift-tab/↑", "previous"),
             ("space", "toggle"),
-            ("ctrl-u", "clear"),
+            ("ctrl-w", "delete word"),
             ("⏎", "create"),
             ("esc", "cancel"),
         ]),
@@ -586,19 +587,19 @@ fn key_span(key: &str) -> Span<'static> {
     Span::styled(format!(" {key}"), Style::new().fg(ACCENT).bold())
 }
 
-fn draw_input(frame: &mut Frame, prompt: &str, placeholder: &str, value: &str) {
+fn draw_input(frame: &mut Frame, prompt: &str, placeholder: &str, value: &TextInput) {
     let area = popup(frame.area(), 60, 3);
     frame.render_widget(Clear, area);
 
     let text = if value.is_empty() {
         Line::from(placeholder.to_string()).dim()
     } else {
-        Line::from(value.to_string())
+        Line::from(value.value().to_string())
     };
     let block = titled_block(format!(" {prompt} "));
     let inner = block.inner(area);
     frame.render_widget(Paragraph::new(text).block(block), area);
-    frame.set_cursor_position((inner.x + value.chars().count() as u16, inner.y));
+    frame.set_cursor_position((inner.x + value.cursor() as u16, inner.y));
 }
 
 fn draw_form(frame: &mut Frame, form: &ActivityForm) {
@@ -642,15 +643,17 @@ fn draw_form(frame: &mut Frame, form: &ActivityForm) {
                 return Line::from(spans);
             }
 
-            let value = form.value(field);
+            let Some(input) = form.input(field) else {
+                return Line::from(spans);
+            };
             if focused {
-                let x = inner.x + (2 + LABEL_WIDTH + value.chars().count()) as u16;
+                let x = inner.x + (2 + LABEL_WIDTH + input.cursor()) as u16;
                 cursor = Some((x, inner.y + row as u16));
             }
-            if value.is_empty() {
+            if input.is_empty() {
                 spans.push(Span::raw(field.placeholder()).dim().italic());
             } else {
-                spans.push(Span::raw(value.to_string()));
+                spans.push(Span::raw(input.value().to_string()));
             }
             Line::from(spans)
         })

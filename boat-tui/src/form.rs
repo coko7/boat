@@ -1,6 +1,8 @@
 use boat_lib::{models::activity::Activity, repository::Id};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use crate::input::TextInput;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Field {
     Name,
@@ -60,11 +62,11 @@ pub enum FormEvent {
 
 #[derive(Debug, Clone)]
 pub struct ActivityForm {
-    pub name: String,
-    pub description: String,
-    pub customer: String,
-    pub jira: String,
-    pub tags: String,
+    pub name: TextInput,
+    pub description: TextInput,
+    pub customer: TextInput,
+    pub jira: TextInput,
+    pub tags: TextInput,
     pub start_now: bool,
     pub focus: Field,
     pub error: Option<String>,
@@ -75,11 +77,11 @@ pub struct ActivityForm {
 impl Default for ActivityForm {
     fn default() -> Self {
         Self {
-            name: String::new(),
-            description: String::new(),
-            customer: String::new(),
-            jira: String::new(),
-            tags: String::new(),
+            name: TextInput::default(),
+            description: TextInput::default(),
+            customer: TextInput::default(),
+            jira: TextInput::default(),
+            tags: TextInput::default(),
             start_now: true,
             focus: Field::Name,
             error: None,
@@ -103,15 +105,16 @@ impl ActivityForm {
         let jira = take("jira:").unwrap_or_default();
 
         Self {
-            name: activity.name.clone(),
-            description: activity.description.clone().unwrap_or_default(),
-            customer,
-            jira,
-            tags: tags
-                .into_iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>()
-                .join(" "),
+            name: TextInput::new(activity.name.clone()),
+            description: TextInput::new(activity.description.clone().unwrap_or_default()),
+            customer: TextInput::new(customer),
+            jira: TextInput::new(jira),
+            tags: TextInput::new(
+                tags.into_iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            ),
             start_now: false,
             editing: Some(activity.id),
             ..Self::default()
@@ -126,18 +129,19 @@ impl ActivityForm {
             .collect()
     }
 
-    pub fn value(&self, field: Field) -> &str {
+    /// Text input backing the field; `None` for the start now checkbox.
+    pub fn input(&self, field: Field) -> Option<&TextInput> {
         match field {
-            Field::Name => &self.name,
-            Field::Description => &self.description,
-            Field::Customer => &self.customer,
-            Field::Jira => &self.jira,
-            Field::Tags => &self.tags,
-            Field::StartNow => "",
+            Field::Name => Some(&self.name),
+            Field::Description => Some(&self.description),
+            Field::Customer => Some(&self.customer),
+            Field::Jira => Some(&self.jira),
+            Field::Tags => Some(&self.tags),
+            Field::StartNow => None,
         }
     }
 
-    fn value_mut(&mut self, field: Field) -> Option<&mut String> {
+    fn input_mut(&mut self, field: Field) -> Option<&mut TextInput> {
         match field {
             Field::Name => Some(&mut self.name),
             Field::Description => Some(&mut self.description),
@@ -167,46 +171,36 @@ impl ActivityForm {
             KeyCode::Char(' ') if self.focus == Field::StartNow => {
                 self.start_now = !self.start_now;
             }
-            KeyCode::Char('u') if ctrl => {
-                if let Some(value) = self.value_mut(self.focus) {
-                    value.clear();
+            _ => {
+                if let Some(input) = self.input_mut(self.focus) {
+                    input.handle_key(key);
                 }
             }
-            KeyCode::Backspace => {
-                if let Some(value) = self.value_mut(self.focus) {
-                    value.pop();
-                }
-            }
-            KeyCode::Char(c) if !ctrl => {
-                if let Some(value) = self.value_mut(self.focus) {
-                    value.push(c);
-                }
-            }
-            _ => {}
         }
         FormEvent::None
     }
 
     fn submit(&mut self) -> FormEvent {
-        let name = self.name.trim();
+        let name = self.name.value().trim();
         if name.is_empty() {
             self.error = Some("Name is required".to_string());
             self.focus = Field::Name;
             return FormEvent::None;
         }
 
-        let description = Some(self.description.trim().to_string()).filter(|d| !d.is_empty());
+        let description =
+            Some(self.description.value().trim().to_string()).filter(|d| !d.is_empty());
 
         let mut tags = vec![];
-        let customer = self.customer.trim();
+        let customer = self.customer.value().trim();
         if !customer.is_empty() {
             tags.push(format!("customer:{}", slugify(customer)));
         }
-        let jira = self.jira.trim();
+        let jira = self.jira.value().trim();
         if !jira.is_empty() {
             tags.push(format!("jira:{jira}"));
         }
-        for tag in self.tags.split_whitespace() {
+        for tag in self.tags.value().split_whitespace() {
             if !tags.iter().any(|t| t == tag) {
                 tags.push(tag.to_string());
             }
@@ -300,9 +294,9 @@ mod tests {
 
         let mut form = ActivityForm::edit(&activity);
         assert_eq!(form.editing, Some(7));
-        assert_eq!(form.customer, "acme-corp");
-        assert_eq!(form.jira, "PROJ-1");
-        assert_eq!(form.tags, "task:bug urgent");
+        assert_eq!(form.customer.value(), "acme-corp");
+        assert_eq!(form.jira.value(), "PROJ-1");
+        assert_eq!(form.tags.value(), "task:bug urgent");
         assert!(!form.fields().contains(&Field::StartNow));
 
         let FormEvent::Submit(input) = form.handle_key(KeyEvent::from(KeyCode::Enter)) else {

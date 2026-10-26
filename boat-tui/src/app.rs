@@ -20,6 +20,7 @@ use std::{
 use crate::{
     config::Config,
     form::{ActivityForm, FormEvent},
+    input::TextInput,
     ui,
 };
 
@@ -200,7 +201,7 @@ pub enum Mode {
         kind: InputKind,
         prompt: String,
         placeholder: String,
-        value: String,
+        value: TextInput,
     },
     Form(ActivityForm),
     MeetingPicker(Picker),
@@ -224,7 +225,7 @@ pub struct App {
     pub mode: Mode,
     /// All activities, most recently active first
     pub activities: Vec<Activity>,
-    pub filter: String,
+    pub filter: TextInput,
     /// Day shown in the report pane; `None` follows the current day
     pub report_day: Option<NaiveDate>,
     pub list_state: ListState,
@@ -241,7 +242,7 @@ impl App {
             conn,
             mode: Mode::Browse,
             activities: vec![],
-            filter: String::new(),
+            filter: TextInput::default(),
             report_day: None,
             list_state: ListState::default().with_selected(Some(0)),
             list_height: 0,
@@ -285,6 +286,7 @@ impl App {
     pub fn visible(&self) -> Vec<&Activity> {
         let needles: Vec<String> = self
             .filter
+            .value()
             .split_whitespace()
             .map(str::to_lowercase)
             .collect();
@@ -412,7 +414,7 @@ impl App {
             KeyCode::PageUp => self.list_state.scroll_up_by(10),
             KeyCode::Home | KeyCode::Char('g') => self.list_state.select_first(),
             KeyCode::End | KeyCode::Char('G') => self.list_state.select_last(),
-            KeyCode::Esc if !self.filter.is_empty() => self.set_filter(String::new()),
+            KeyCode::Esc if !self.filter.is_empty() => self.set_filter(TextInput::default()),
             KeyCode::Esc => self.should_quit = true,
             code => {
                 if let Some(action) = Action::from_key(code) {
@@ -485,7 +487,7 @@ impl App {
         self.report_day = (day < today).then_some(day);
     }
 
-    fn set_filter(&mut self, filter: String) {
+    fn set_filter(&mut self, filter: TextInput) {
         let selected_id = self.selected().map(|a| a.id);
         self.filter = filter;
         self.restore_selection(selected_id);
@@ -494,22 +496,18 @@ impl App {
     fn handle_filter_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
-                self.set_filter(String::new());
+                self.set_filter(TextInput::default());
                 self.mode = Mode::Browse;
             }
             KeyCode::Enter => self.mode = Mode::Browse,
             KeyCode::Down => self.list_state.select_next(),
             KeyCode::Up => self.list_state.select_previous(),
-            KeyCode::Backspace => {
+            _ => {
                 let mut filter = self.filter.clone();
-                filter.pop();
-                self.set_filter(filter);
+                if filter.handle_key(key) && filter != self.filter {
+                    self.set_filter(filter);
+                }
             }
-            KeyCode::Char(c) => {
-                let filter = format!("{}{c}", self.filter);
-                self.set_filter(filter);
-            }
-            _ => {}
         }
     }
 
@@ -518,7 +516,7 @@ impl App {
             kind,
             prompt: prompt.to_string(),
             placeholder: placeholder.to_string(),
-            value: String::new(),
+            value: TextInput::default(),
         };
     }
 
@@ -529,17 +527,15 @@ impl App {
 
         match key.code {
             KeyCode::Esc => self.mode = Mode::Browse,
-            KeyCode::Backspace => {
-                value.pop();
-            }
-            KeyCode::Char(c) => value.push(c),
             KeyCode::Enter => {
                 let kind = kind.clone();
-                let value = value.trim().to_string();
+                let value = value.value().trim().to_string();
                 self.mode = Mode::Browse;
                 self.submit_input(kind, value)?;
             }
-            _ => {}
+            _ => {
+                value.handle_key(key);
+            }
         }
         Ok(())
     }
