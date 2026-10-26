@@ -95,9 +95,11 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
             let elapsed = running_since(activity)
                 .map(|s| format_duration(Utc::now() - s))
                 .unwrap_or_default();
+            // marker (2) + gap (2) + a column of margin on each side
+            let name_width = (current.width as usize).saturating_sub(elapsed.len() + 6);
             Line::from(vec![
                 Span::styled("● ", Style::new().fg(RUNNING)),
-                Span::raw(activity.name.clone()).bold(),
+                Span::raw(truncate(&activity.name, name_width)).bold(),
                 Span::styled(format!("  {elapsed}"), Style::new().fg(RUNNING)),
             ])
         }
@@ -165,13 +167,16 @@ fn draw_activities(frame: &mut Frame, area: Rect, app: &mut App) {
     app.list_height = list_area.height;
 
     if show_filter {
+        let (text, cursor) = app
+            .filter
+            .view(filter_area.width.saturating_sub(1) as usize);
         let filter = Line::from(vec![
             Span::styled("/", Style::new().fg(ACCENT)),
-            Span::raw(app.filter.value().to_string()),
+            Span::raw(text),
         ]);
         frame.render_widget(filter, filter_area);
         if matches!(app.mode, Mode::Filter) {
-            let x = filter_area.x + 1 + app.filter.cursor() as u16;
+            let x = filter_area.x + 1 + cursor as u16;
             frame.set_cursor_position((x, filter_area.y));
         }
     }
@@ -198,9 +203,12 @@ fn draw_preview(frame: &mut Frame, area: Rect, app: &App) {
         return;
     };
 
+    let id = format!(" #{} ", activity.id);
+    // corners (2) + trailing space (1)
+    let name_width = (area.width as usize).saturating_sub(id.len() + 3);
     let block = titled_block(Line::from(vec![
-        Span::raw(format!(" #{} ", activity.id)).dim(),
-        Span::raw(format!("{} ", activity.name)).bold(),
+        Span::raw(id).dim(),
+        Span::raw(format!("{} ", truncate(&activity.name, name_width))).bold(),
     ]));
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -591,24 +599,77 @@ fn draw_input(frame: &mut Frame, prompt: &str, placeholder: &str, value: &TextIn
     let area = popup(frame.area(), 60, 3);
     frame.render_widget(Clear, area);
 
+    let block = titled_block(format!(" {prompt} "));
+    let inner = block.inner(area);
+    let (visible, cursor) = value.view(inner.width as usize);
     let text = if value.is_empty() {
         Line::from(placeholder.to_string()).dim()
     } else {
-        Line::from(value.value().to_string())
+        Line::from(visible)
     };
-    let block = titled_block(format!(" {prompt} "));
-    let inner = block.inner(area);
     frame.render_widget(Paragraph::new(text).block(block), area);
-    frame.set_cursor_position((inner.x + value.cursor() as u16, inner.y));
+    frame.set_cursor_position((inner.x + cursor as u16, inner.y));
 }
 
 fn draw_form(frame: &mut Frame, form: &ActivityForm) {
+    const POPUP_WIDTH: u16 = 70;
     const LABEL_WIDTH: usize = 13;
+    // borders and margins (4) + focus marker (2) + label
+    let value_width =
+        (POPUP_WIDTH.min(frame.area().width) as usize).saturating_sub(6 + LABEL_WIDTH);
 
-    let fields = form.fields();
-    let area = popup(frame.area(), 70, fields.len() as u16 + 6);
+    let mut cursor = None;
+    let mut lines: Vec<Line> = vec![];
+    for field in form.fields() {
+        let focused = form.focus == field;
+        let required = if field == Field::Name { "*" } else { " " };
+        let label_style = if focused {
+            Style::new().fg(ACCENT).bold()
+        } else {
+            Style::new().dim()
+        };
+        let mut spans = vec![
+            Span::styled(if focused { "› " } else { "  " }, label_style),
+            Span::styled(
+                format!("{:<LABEL_WIDTH$}", format!("{}{required}", field.label())),
+                label_style,
+            ),
+        ];
+
+        let Some(input) = form.input(field) else {
+            let check = if form.start_now { "[x]" } else { "[ ]" };
+            spans.push(Span::styled(check, label_style));
+            lines.push(Line::from(spans));
+            continue;
+        };
+
+        if input.is_empty() {
+            spans.push(Span::raw(field.placeholder()).dim().italic());
+        }
+        let (wrapped, (row, column)) = input.wrap(value_width);
+        if focused {
+            cursor = Some((lines.len() + row, 2 + LABEL_WIDTH + column));
+        }
+        let indent = " ".repeat(2 + LABEL_WIDTH);
+        for (i, text) in wrapped.into_iter().enumerate() {
+            if i > 0 {
+                spans = vec![Span::raw(indent.clone())];
+            }
+            if !input.is_empty() {
+                spans.push(Span::raw(text));
+            }
+            lines.push(Line::from(std::mem::take(&mut spans)));
+        }
+    }
+
+    lines.push(Line::default());
+    lines.push(match &form.error {
+        Some(error) => Line::from(format!("⚠ {error}")).red(),
+        None => Line::from("customer and jira become customer:<slug> and jira:<issue> tags").dim(),
+    });
+
+    let area = popup(frame.area(), POPUP_WIDTH, lines.len() as u16 + 4);
     frame.render_widget(Clear, area);
-
     let title = match form.editing {
         Some(id) => format!(" Edit Activity #{id} "),
         None => " New Activity ".to_string(),
@@ -617,57 +678,9 @@ fn draw_form(frame: &mut Frame, form: &ActivityForm) {
     let inner = block.inner(area).inner(Margin::new(1, 1));
     frame.render_widget(block, area);
 
-    let mut cursor = None;
-    let mut lines: Vec<Line> = fields
-        .into_iter()
-        .enumerate()
-        .map(|(row, field)| {
-            let focused = form.focus == field;
-            let required = if field == Field::Name { "*" } else { " " };
-            let label_style = if focused {
-                Style::new().fg(ACCENT).bold()
-            } else {
-                Style::new().dim()
-            };
-            let mut spans = vec![
-                Span::styled(if focused { "› " } else { "  " }, label_style),
-                Span::styled(
-                    format!("{:<LABEL_WIDTH$}", format!("{}{required}", field.label())),
-                    label_style,
-                ),
-            ];
-
-            if field == Field::StartNow {
-                let check = if form.start_now { "[x]" } else { "[ ]" };
-                spans.push(Span::styled(check, label_style));
-                return Line::from(spans);
-            }
-
-            let Some(input) = form.input(field) else {
-                return Line::from(spans);
-            };
-            if focused {
-                let x = inner.x + (2 + LABEL_WIDTH + input.cursor()) as u16;
-                cursor = Some((x, inner.y + row as u16));
-            }
-            if input.is_empty() {
-                spans.push(Span::raw(field.placeholder()).dim().italic());
-            } else {
-                spans.push(Span::raw(input.value().to_string()));
-            }
-            Line::from(spans)
-        })
-        .collect();
-
-    lines.push(Line::default());
-    lines.push(match &form.error {
-        Some(error) => Line::from(format!("⚠ {error}")).red(),
-        None => Line::from("customer and jira become customer:<slug> and jira:<issue> tags").dim(),
-    });
-
     frame.render_widget(Paragraph::new(lines), inner);
-    if let Some(position) = cursor {
-        frame.set_cursor_position(position);
+    if let Some((row, column)) = cursor {
+        frame.set_cursor_position((inner.x + column as u16, inner.y + row as u16));
     }
 }
 

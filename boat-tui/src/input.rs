@@ -23,9 +23,48 @@ impl TextInput {
         self.value.is_empty()
     }
 
-    /// Cursor position, in chars from the start of the value.
-    pub fn cursor(&self) -> usize {
-        self.cursor
+    /// The part of the value that fits in `width` columns, scrolled so the cursor stays
+    /// visible, and the cursor offset within it.
+    pub fn view(&self, width: usize) -> (String, usize) {
+        let width = width.max(1);
+        // keep one column for the cursor when it sits past the last char
+        let scroll = self.cursor.saturating_sub(width - 1);
+        let visible = self.value.chars().skip(scroll).take(width).collect();
+        (visible, self.cursor - scroll)
+    }
+
+    /// The value wrapped on word boundaries into lines of at most `width` columns
+    /// (words longer than that are split), and the cursor position as `(row, column)`.
+    pub fn wrap(&self, width: usize) -> (Vec<String>, (usize, usize)) {
+        let width = width.max(1);
+        let chars: Vec<char> = self.value.chars().collect();
+
+        // start of each line, in chars
+        let mut starts = vec![0];
+        let mut start = 0;
+        while chars.len() - start > width {
+            let end = (start + 1..=start + width)
+                .rev()
+                .find(|&i| chars[i - 1].is_whitespace())
+                .unwrap_or(start + width);
+            starts.push(end);
+            start = end;
+        }
+        // a full last line leaves no room for the cursor after it
+        if self.cursor == chars.len() && chars.len() - start == width {
+            starts.push(chars.len());
+        }
+
+        let lines = starts
+            .iter()
+            .enumerate()
+            .map(|(row, &start)| {
+                let end = starts.get(row + 1).copied().unwrap_or(chars.len());
+                chars[start..end].iter().collect()
+            })
+            .collect();
+        let row = starts.iter().rposition(|&s| s <= self.cursor).unwrap_or(0);
+        (lines, (row, self.cursor - starts[row]))
     }
 
     pub fn clear(&mut self) {
@@ -125,22 +164,22 @@ mod tests {
     fn moves_and_deletes_by_word() {
         let mut input = TextInput::new("fix the löгin bug");
         press(&mut input, KeyCode::Left, KeyModifiers::CONTROL);
-        assert_eq!(input.cursor(), 14);
+        assert_eq!(input.cursor, 14);
         press(&mut input, KeyCode::Left, KeyModifiers::CONTROL);
-        assert_eq!(input.cursor(), 8);
+        assert_eq!(input.cursor, 8);
 
         press(&mut input, KeyCode::Char('w'), KeyModifiers::CONTROL);
         assert_eq!(input.value(), "fix löгin bug");
-        assert_eq!(input.cursor(), 4);
+        assert_eq!(input.cursor, 4);
 
         press(&mut input, KeyCode::Right, KeyModifiers::CONTROL);
-        assert_eq!(input.cursor(), 9);
+        assert_eq!(input.cursor, 9);
         press(&mut input, KeyCode::Backspace, KeyModifiers::CONTROL);
         assert_eq!(input.value(), "fix  bug");
 
         press(&mut input, KeyCode::Char('h'), KeyModifiers::CONTROL);
         assert_eq!(input.value(), " bug");
-        assert_eq!(input.cursor(), 0);
+        assert_eq!(input.cursor, 0);
     }
 
     #[test]
@@ -153,5 +192,34 @@ mod tests {
         press(&mut input, KeyCode::Delete, KeyModifiers::NONE);
         assert_eq!(input.value(), "bc");
         assert!(!input.handle_key(KeyEvent::from(KeyCode::Enter)));
+    }
+
+    #[test]
+    fn wrap_breaks_on_words_and_tracks_cursor() {
+        let mut input = TextInput::new("fix the login bug");
+        assert_eq!(
+            input.wrap(8),
+            (
+                vec!["fix the ".into(), "login ".into(), "bug".into()],
+                (2, 3)
+            )
+        );
+        press(&mut input, KeyCode::Left, KeyModifiers::CONTROL);
+        assert_eq!(input.wrap(8).1, (2, 0));
+
+        let input = TextInput::new("abcdefgh");
+        assert_eq!(
+            input.wrap(4),
+            (vec!["abcd".into(), "efgh".into(), "".into()], (2, 0))
+        );
+    }
+
+    #[test]
+    fn view_scrolls_to_keep_cursor_visible() {
+        let mut input = TextInput::new("abcdefgh");
+        assert_eq!(input.view(5), ("efgh".to_string(), 4));
+        assert_eq!(input.view(20), ("abcdefgh".to_string(), 8));
+        press(&mut input, KeyCode::Home, KeyModifiers::NONE);
+        assert_eq!(input.view(5), ("abcde".to_string(), 0));
     }
 }
